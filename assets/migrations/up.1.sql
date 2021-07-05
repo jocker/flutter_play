@@ -1,24 +1,27 @@
--- TABLE SCHEMA products
-create table products(
-	_sync_flags integer not null  default 0,
+-- TABLE SCHEMA columns
+create table columns(
 	id integer not null primary key,
-	name varchar(255),
-	cost_basis float,
-	price_per_case float,
-	case_size integer,
-	source_category_name varchar(255),
-	category_name varchar(255),
-	roc float,
-	inventory_unit_count integer,
-	required_unit_count integer,
-	archived boolean,
-	wh_order integer
+	_sync_flags integer not null  default 0,
+	column_name varchar(255) not null ,
+	planogram_id integer not null ,
+	product_id integer,
+	location_id integer,
+	display_name varchar(255),
+	last_fill integer,
+	capacity integer,
+	max_capacity integer,
+	last_visit timestamp,
+	tray_id integer not null ,
+	coil_notes varchar(255),
+	set_price float,
+	sts_coils text,
+	active boolean
 );
 
 -- TABLE SCHEMA locations
 create table locations(
-	_sync_flags integer not null  default 0,
 	id integer not null primary key,
+	_sync_flags integer not null  default 0,
 	name varchar(255),
 	address varchar(255),
 	address_secondary varchar(255),
@@ -38,6 +41,26 @@ create table locations(
 	serial varchar(255),
 	cardreader_serial varchar(255)
 );
+
+
+-- TABLE SCHEMA products
+create table products(
+	_sync_flags integer not null  default 0,
+	id integer not null primary key,
+	name varchar(255),
+	cost_basis float,
+	price_per_case float,
+	case_size integer,
+	source_category_name varchar(255),
+	category_name varchar(255),
+	roc float,
+	inventory_unit_count integer,
+	required_unit_count integer,
+	archived boolean,
+	wh_order integer
+);
+
+
 
 
 -- TABLE SCHEMA machine_column_sales
@@ -97,25 +120,7 @@ create table location_products(
 
 
 
--- TABLE SCHEMA columns
-create table columns(
-	_sync_flags integer not null  default 0,
-	id integer not null primary key,
-	name varchar(255) not null ,
-	planogram_id integer not null ,
-	product_id integer,
-	location_id integer,
-	display_name varchar(255),
-	last_fill integer,
-	capacity integer,
-	max_capacity integer,
-	last_visit timestamp,
-	tray_id integer not null ,
-	coil_notes varchar(255),
-	set_price float,
-	sts_coils text,
-	active boolean
-);
+
 
 -- TABLE SCHEMA packs
 create table packs(

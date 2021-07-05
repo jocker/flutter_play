@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:uri/uri.dart';
 import 'package:vgbnd/data/db.dart';
+import 'package:vgbnd/models/coil.dart';
 
 class RemoteRevision {
   String name;
@@ -16,9 +17,9 @@ class Api {
   revisions() async {
     try {
       final resp =
-      await ApiRequestBuilder(HttpMethod.GET, "collections/revisions")
-          .request()
-          .send();
+          await ApiRequestBuilder(HttpMethod.GET, "collections/revisions")
+              .request()
+              .send();
       if (resp.statusCode == 200) {
         final rawJson = await resp.stream.bytesToString();
         final Map x = json.decode(rawJson);
@@ -74,8 +75,9 @@ class ApiRequestBuilder {
   Map<String, String>? _qsParams;
   Map<String, String>? _headers;
 
-  //static final _baseApiUri = 'https://apim.vagabondvending.com/api/public';
-  static final _baseApiUri = 'http://192.168.100.152:3000/api/public';
+  static final _baseApiUri = 'https://apim.vagabondvending.com/api/public';
+
+  //static final _baseApiUri = 'http://192.168.100.152:3000/api/public';
 
   static Uri getUri(String path, [Map<String, String>? qsParams]) {
     if (path.startsWith("/")) {
@@ -111,7 +113,7 @@ class ApiRequestBuilder {
     }
     addHeaders({
       "XAUTHENTICATION":
-      "bonnie@vagabondvending.com:0a7e2fa2b51922cf327764147fe63afc",
+          "bonnie@vagabondvending.com:0a7e2fa2b51922cf327764147fe63afc",
       "Accept": "application/json"
     });
   }
@@ -166,25 +168,20 @@ class RemoteCollectionChangeset {
   final List<String> remoteColumnNames;
   final List<dynamic> data;
 
-  RemoteCollectionChangeset(this.collectionName, this.remoteColumnNames,
-      this.data);
+  RemoteCollectionChangeset(
+      this.collectionName, this.remoteColumnNames, this.data);
 
-  save(DbConn db) async {
+  save(SyncDbCollection collection, DbConn db) async {
     final tmpTableName = "${this.collectionName}_tmp";
     db.execute(
         "create temporary table $tmpTableName as select * from $collectionName where false");
 
-    List<String> remoteKeys = [];
-    List<String> localKeys = [];
-    for (var key in LOCATION_COLUMN_MAPPING.keys) {
-      localKeys.add(key);
-      remoteKeys.add(LOCATION_COLUMN_MAPPING[key]!);
-    }
+    List<String> localColumnNames = collection.remoteReadableColumns.map((e) => e.name).toList();
 
     var deletedColIndex = -1;
     var idColIndex = -1;
     var remoteColIndex = -1;
-    List<String> affectedLocalColumnNames = [];
+    List<String> affectedColumnNames = [];
     List<int> remoteValueIndices = [];
     for (var key in this.remoteColumnNames) {
       remoteColIndex += 1;
@@ -196,20 +193,18 @@ class RemoteCollectionChangeset {
         idColIndex = remoteColIndex;
       }
 
-      final colIdx = remoteKeys.indexOf(key);
+      final colIdx = localColumnNames.indexOf(key);
       if (colIdx < 0) {
         continue;
       }
-
-      affectedLocalColumnNames.add(localKeys[colIdx]);
+      affectedColumnNames.add(key);
       remoteValueIndices.add(colIdx);
     }
 
     final stm = db.prepare(
-        "insert into $tmpTableName(${affectedLocalColumnNames.join(
-            ",")}) values (${affectedLocalColumnNames.map((e) => "?").join(
-            ",")})");
-    final args = List<Object?>.filled(affectedLocalColumnNames.length, null);
+        "insert into $tmpTableName( ${affectedColumnNames.join(",")} ) values ( ${affectedColumnNames.map((e) => "?").join(",")} )");
+
+    final args = List<Object?>.filled(affectedColumnNames.length, null);
     final deleteItemIds = Set<Object>();
     for (dynamic raw in this.data) {
       final row = raw.cast<Object?>();
@@ -255,23 +250,3 @@ const LOCATION_COLUMN_MAPPING = {
   "serial": "machine_serial",
   "cardreader_serial": "cardreader_serial",
 };
-
-const COIL_COLUMN_MAPPING = {
-  "id": "id",
-  "name": "column_name",
-  "planogram_id": "planogram_id",
-  "product_id": "product_id",
-  "location_id": "location_id",
-  "display_name": "display_name",
-  "last_fill": "last_fill",
-  "capacity": "capacity",
-  "max_capacity": "max_capacity",
-  "last_visit": "last_visit",
-  "tray_id": "tray_id",
-  "coil_notes": "coil_notes",
-  "set_price": "set_price",
-  "sts_coils": "sts_coils",
-  "active": "active",
-};
-
-
