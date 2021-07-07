@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:vgbnd/api/api.dart';
 import 'package:vgbnd/data/db.dart';
+import 'package:vgbnd/sync/sync.dart';
 import 'package:vgbnd/widgets/numeric_stepper_input.dart';
 
 class OverviewPage extends StatelessWidget {
@@ -17,8 +17,8 @@ class OverviewPage extends StatelessWidget {
             child: Text("Trigger"),
             onPressed: () {
               DbConn.open("local.db").then((db) => {
-                    Api().changes(db).then((value) => {print("aaaaa")})
-                  });
+                SyncEngine(db).sync()
+            });
             },
           ),
           Padding(

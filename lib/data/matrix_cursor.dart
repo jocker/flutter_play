@@ -1,12 +1,14 @@
 import 'cursor.dart';
 
-class MatrixCursor implements Cursor {
+class MatrixCursor extends Cursor {
   int _position = -1;
   final List<List<Object?>> _rows;
 
   final Map<String, int> _columnsMap;
 
-  MatrixCursor(this._columnsMap, this._rows);
+  MatrixCursor(this._columnsMap, this._rows){
+    _position = -1;
+  }
 
   bool moveToFirst() {
     return this.moveToPosition(0);
@@ -38,14 +40,14 @@ class MatrixCursor implements Cursor {
 
   bool move(int offset) {
     int idx = this._position + offset;
-    if (idx > 0 && idx < this.count) {
+    if (idx >= 0 && idx < this.count) {
       this._position = idx;
       return true;
     }
     return false;
   }
 
-  T? getValue<T>({columnIndex: int, columnName: String}) {
+  T? getValue<T>({int? columnIndex, String? columnName}) {
     final valueIndex = columnIndex ?? this._columnsMap[columnName] ?? -1;
     if (valueIndex < 0 || valueIndex >= this._columnsMap.length) {
       return null;
