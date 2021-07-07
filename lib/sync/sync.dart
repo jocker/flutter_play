@@ -11,6 +11,7 @@ import 'package:vgbnd/data/db.dart';
 import 'package:vgbnd/models/coil.dart';
 import 'package:vgbnd/models/location.dart';
 import 'package:vgbnd/models/machine_column_sales.dart';
+import 'package:vgbnd/models/pack.dart';
 import 'package:vgbnd/models/product.dart';
 import 'package:vgbnd/models/productlocation.dart';
 import 'package:vgbnd/sync/schema.dart';
@@ -45,6 +46,12 @@ class SyncEngineIsolate {
     } else {
       unsynced.addAll(SyncEngine.SYNC_SCHEMAS.map((e) => SchemaVersion(e, 0)));
     }
+
+    unsynced = unsynced.where((element) =>
+    SyncDbSchema
+        .byName(element.schemaName)
+        ?.syncOps
+        .contains(SyncDbRemoteOp.Read) ?? false).toList();
 
     final unsyncedResp = await _api.changes(_account, unsynced, includeDeleted: includeDeleted);
     if (!unsyncedResp.isSuccess) {
@@ -128,7 +135,8 @@ class SyncEngine extends TaskRunner {
     Location.SCHEMA_NAME,
     Product.SCHEMA_NAME,
     ProductLocation.SCHEMA_NAME,
-    MachineColumnSale.SCHEMA_NAME
+    MachineColumnSale.SCHEMA_NAME,
+    Pack.SCHEMA_NAME
   ];
 
   static _runTasks(SetupMessage setupMessage) async {
@@ -173,7 +181,7 @@ class SyncEngine extends TaskRunner {
   Future<Stream<int>> watchSchemas(List<String> schemaNames) async {
     final p = ReceivePort();
     WatchSchemasReply reply =
-        await this.exec(_MESSAGE_TYPE_WATCH_SCHEMA_CHANGED, args: WatchSchemasMessage(p.sendPort, schemaNames));
+    await this.exec(_MESSAGE_TYPE_WATCH_SCHEMA_CHANGED, args: WatchSchemasMessage(p.sendPort, schemaNames));
 
     StreamController<int> controller = StreamController<int>(
       onCancel: () {
