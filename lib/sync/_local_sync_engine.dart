@@ -9,6 +9,8 @@ import 'package:vgbnd/sync/sync.dart';
 class LocalSyncEngine {
   final DbConn _dbConn;
 
+  final _changedStreamController = StreamController<SchemaChangedEvent>.broadcast();
+
   LocalSyncEngine(this._dbConn);
 
   List<SchemaVersion> getUnsynced(List<SchemaVersion> remoteVersions) {
@@ -40,7 +42,7 @@ class LocalSyncEngine {
     }
 
     final nextId = schemaInfo.idCounter - 1;
-    _setSchemaIdCounter(schemaName, nextId);
+    _setLocalIdCounter(schemaName, nextId);
     return nextId;
   }
 
@@ -49,10 +51,6 @@ class LocalSyncEngine {
   Map<String, LocalSchemaInfo> get localSchemaInfos {
     if (_localSchemaInfos == null) {
       final dest = new HashMap<String, LocalSchemaInfo>();
-
-      for (var schemaName in SyncEngine.SYNC_SCHEMAS) {
-        dest[schemaName] = LocalSchemaInfo.empty(schemaName);
-      }
 
       final cursor = _dbConn.select(
           "select schema_name,local_revision_num,id_counter from ${LocalSchemaInfo.TABLE_NAME} where schema_name in ${DbConn.sqlIn(SyncEngine.SYNC_SCHEMAS)}");
@@ -66,6 +64,20 @@ class LocalSyncEngine {
       }).forEach((sch) {
         dest[sch.schemaName] = sch;
       });
+
+      for (var schemaName in SyncEngine.SYNC_SCHEMAS) {
+        if (dest.containsKey(schemaName)) {
+          continue;
+        }
+        dest[schemaName] = LocalSchemaInfo.empty(schemaName);
+      }
+
+      for (var schemaInfo in dest.values) {
+        schemaInfo.onChanged((ev) {
+          _changedStreamController.sink.add(ev);
+        });
+      }
+
       _localSchemaInfos = dest;
     }
 
@@ -82,10 +94,17 @@ class LocalSyncEngine {
     });
   }
 
-  saveRemoteChangeset(RemoteSchemaChangeset changeset, {bool? useTempTable}) {
+  reset() {
+    _dbConn.reconnect();
+    _localSchemaInfos = null;
+  }
+
+  int saveRemoteChangeset(RemoteSchemaChangeset changeset, {bool? useTempTable}) {
+    int changesetRevNum = 0;
+
     final schema = SyncDbSchema.byName(changeset.collectionName);
     if (schema == null) {
-      return;
+      return changesetRevNum;
     }
 
     _dbConn.runInTransaction((tx) {
@@ -126,7 +145,7 @@ class LocalSyncEngine {
           continue;
         }
         affectedColumnNames.add(key);
-        remoteValueIndices.add(colIdx);
+        remoteValueIndices.add(remoteColIndex);
       }
 
       final stm = tx.prepare(
@@ -178,25 +197,30 @@ class LocalSyncEngine {
       if (rawRevision != null) {
         final revNum = SyncDbSchema.parseRevNum(rawRevision);
         if (revNum > 0) {
-          _setSchemaRevNumber(schema.schemaName, revNum, db: tx);
+          _setRevNumber(schema.schemaName, revNum, db: tx);
+          changesetRevNum = revNum;
         }
       }
 
       return true;
     });
+    if(changesetRevNum > 0){
+      localSchemaInfos[changeset.collectionName]!.invalidateVersion();
+    }
+    return changesetRevNum;
   }
 
-  _setSchemaRevNumber(String schemaName, int revNumber, {DbConn? db}) {
+  _setRevNumber(String schemaName, int revNumber, {DbConn? db}) {
     final info = this.localSchemaInfos[schemaName];
-    if (info != null) {
+    if (info != null && (info.revNum != revNumber)) {
       _upsertSchemaInfo(schemaName, {"local_revision_num": revNumber}, db: db);
       info.revNum = revNumber;
     }
   }
 
-  _setSchemaIdCounter(String schemaName, int idCounter, {DbConn? db}) {
+  _setLocalIdCounter(String schemaName, int idCounter, {DbConn? db}) {
     final info = this.localSchemaInfos[schemaName];
-    if (info != null) {
+    if (info != null && (info.idCounter != idCounter)) {
       _upsertSchemaInfo(schemaName, {"id_counter": idCounter}, db: db);
       info.idCounter = idCounter;
     }
@@ -205,9 +229,20 @@ class LocalSyncEngine {
   _upsertSchemaInfo(String schemaName, Map<String, dynamic> values, {DbConn? db}) {
     (db ?? _dbConn).upsert(LocalSchemaInfo.TABLE_NAME, {"schema_name": schemaName}, values);
   }
+
+  Stream<SchemaChangedEvent> onSchemaChanged() {
+    return _changedStreamController.stream;
+  }
 }
 
 class LocalSchemaInfo {
+  static int _schemaVersionCounter = 1;
+
+  static int _nextVersionNumber() {
+    _schemaVersionCounter += 1;
+    return _schemaVersionCounter;
+  }
+
   static const TABLE_NAME = '_schema_info';
 
   static LocalSchemaInfo empty(String schemaName) {
@@ -217,8 +252,27 @@ class LocalSchemaInfo {
   String schemaName;
   int revNum;
   int idCounter;
-
-  final _versionChangedStreamController = StreamController<int>();
+  int versionNumber = _nextVersionNumber();
+  Function(SchemaChangedEvent ev)? _onChangedListener;
 
   LocalSchemaInfo(this.schemaName, this.revNum, this.idCounter);
+
+  onChanged(Function(SchemaChangedEvent ev) fn) {
+    _onChangedListener = fn;
+  }
+
+  invalidateVersion() {
+    versionNumber = _nextVersionNumber();
+    final listener = _onChangedListener;
+    if (listener != null) {
+      listener(SchemaChangedEvent(this.schemaName, versionNumber));
+    }
+  }
+}
+
+class SchemaChangedEvent {
+  final String schemaName;
+  final int versionNum;
+
+  SchemaChangedEvent(this.schemaName, this.versionNum);
 }

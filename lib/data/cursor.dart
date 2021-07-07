@@ -1,5 +1,7 @@
 abstract class Cursor extends Iterable<Cursor> {
   int get count;
+  int get dataVersion;
+  Iterable<String> get columnNames;
 
   bool moveToFirst();
 

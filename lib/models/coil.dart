@@ -1,19 +1,12 @@
-
 import 'package:vgbnd/sync/schema.dart';
 
+import 'base_model.dart';
 
-class Coil extends BaseModel {
+class Coil extends BaseModel<Coil> {
   static const String SCHEMA_NAME = 'columns';
 
-  static final schema =
-      SyncDbSchema<Coil>(SCHEMA_NAME, allocate: () => Coil(), columns: [
-    SyncDbColumn<Coil>(
-      "id",
-      readAttribute: (dest) => dest.id,
-      assignAttribute: (value, key, dest) {
-        dest.id = value.getValue(key) ?? dest.id;
-      },
-    ),
+  static final schema = SyncDbSchema<Coil>(SCHEMA_NAME, allocate: () => Coil(), columns: [
+    SyncDbColumn.id(),
     SyncDbColumn(
       "column_name",
       readAttribute: (dest) => dest.columnName,
@@ -128,13 +121,11 @@ class Coil extends BaseModel {
   int? setPrice;
   String? stsCoils;
   bool? active;
-}
 
-abstract class BaseModel<T> {
-  int? id;
 
-  bool isNewRecord() {
-    return this.id == null;
+  @override
+  SyncDbSchema<Coil> getSchema() {
+    return schema;
   }
 }
 

@@ -1,10 +1,12 @@
-import 'package:vgbnd/models/coil.dart';
 import 'package:vgbnd/sync/schema.dart';
 
-class Location extends BaseModel {
+import 'base_model.dart';
+
+class Location extends BaseModel<Location> {
   static const String SCHEMA_NAME = 'locations';
 
   static final schema = SyncDbSchema<Location>(SCHEMA_NAME, allocate: () => Location(), columns: [
+    SyncDbColumn.id(),
     SyncDbColumn(
       "location_name",
       assignAttribute: (value, key, dest) {
@@ -187,4 +189,9 @@ class Location extends BaseModel {
   String? model;
   String? machineSerial;
   String? cardReaderSerial;
+
+  @override
+  SyncDbSchema<Location> getSchema() {
+    return schema;
+  }
 }

@@ -1,18 +1,15 @@
+import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
-import 'package:path/path.dart' as path;
-import 'package:path_provider/path_provider.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 import 'cursor.dart';
 import 'matrix_cursor.dart';
 
-
 class DbConn {
   static final int DB_VERSION = 1;
-
 
   static String sqlIn(List items) {
     final List<String> strList = List.filled(items.length, "null");
@@ -32,7 +29,7 @@ class DbConn {
   }
 
   static Future<void> _runMigrations(Database db) async {
-    int currentVersion = db.select("PRAGMA user_version").first.values.first;
+    int currentVersion = db.userVersion;
     currentVersion += 1;
 
     final commentPrefix = "--";
@@ -73,7 +70,7 @@ class DbConn {
         for (var q in queries) {
           db.execute(q);
         }
-        db.execute("PRAGMA user_version = $currentVersion");
+        db.userVersion = currentVersion;
 
         db.execute("commit");
       } catch (e) {
@@ -86,16 +83,22 @@ class DbConn {
     }
   }
 
-  static Future<DbConn> open(String fName) async {
-    final fileName = path.join((await getApplicationDocumentsDirectory()).path, fName);
-    final db = sqlite3.open(fileName);
-    final conn = new DbConn(fileName, db);
-    await _runMigrations(db);
+  // needs to run in the main isolate
+  static Future<void> runMigrations(String dbPath) async {
+    final db = await DbConn.open(dbPath, runMigrations: true);
+    db.dispose();
+  }
 
+  static Future<DbConn> open(String absoluteDbPath, {bool? runMigrations}) async {
+    final db = sqlite3.open(absoluteDbPath);
+    final conn = new DbConn(absoluteDbPath, db);
+    if (runMigrations != false) {
+      await _runMigrations(db);
+    }
     return conn;
   }
 
-  final Database _db;
+  Database _db;
   final String _fileName;
 
   DbConn(this._fileName, this._db);
@@ -153,8 +156,38 @@ class DbConn {
     return MatrixCursor(columnsMap, res.rows);
   }
 
+  Map<String, dynamic>? selectOne(String sql, [List<Object?> parameters = const []]) {
+    final c = select(sql, parameters);
+    if (c.count != 1 || !c.moveToFirst()) {
+      return null;
+    }
+    final Map<String, dynamic> res = {};
+    for (var col in c.columnNames) {
+      dynamic v = c.getValue(columnName: col);
+      res[col] = v;
+    }
+    return res;
+  }
+
+  T? selectValue<T>(String sql, [List<Object?> parameters = const []]) {
+    final c = select(sql, parameters);
+    if (c.count != 1 || !c.moveToFirst()) {
+      return null;
+    }
+    final colNames = List.of(c.columnNames);
+    if (colNames.length != 1) {
+      return null;
+    }
+    return c.getValue(columnIndex: 0);
+  }
+
   void dispose() {
     _db.dispose();
+  }
+
+  reconnect() {
+    _db.dispose();
+    _db = sqlite3.open(_fileName);
   }
 
   void upsert(String tableName, Map<String, dynamic> pkValues, Map<String, dynamic> values) {

@@ -8,20 +8,20 @@ abstract class TaskRunner {
   bool _isDisposed = false;
   Isolate? _isol;
 
-  static runnerFunc(SendPort initPort,
-      {required dynamic Function(TaskMessage msg) onMessage}) {
+  static runnerFunc(SendPort onComplete, {required dynamic Function(TaskMessage msg) processMessage}) {
     final recvPort = ReceivePort();
 
     recvPort.listen((rawMessage) async {
       final msg = rawMessage as TaskMessage;
-      final res = await onMessage(msg);
+      final res = await processMessage(msg);
       msg.resolve(res);
     });
-
-    initPort.send(recvPort.sendPort);
+    scheduleMicrotask(() {
+      onComplete.send(recvPort.sendPort);
+    });
   }
 
-  _run() async {
+  setup({required Function(SetupMessage message) initIsolate, Object? setupArgs}) async {
     if (_isRunning || _isDisposed) {
       return;
     }
@@ -41,20 +41,31 @@ abstract class TaskRunner {
       this._enqueuePort = enqueueTaskPort;
     });
 
-    _isol = await Isolate.spawn(getRunnerFunc(), initPort.sendPort);
+    final setupMgs = SetupMessage(initPort.sendPort, setupArgs);
+
+    final errPort = ReceivePort();
+    final exitPort = ReceivePort();
+
+    errPort.listen((message) {
+      print(message);
+    });
+
+    exitPort.listen((message) {
+      errPort.close();
+      dispose();
+    });
+
+    _isol = await Isolate.spawn(initIsolate, setupMgs, errorsAreFatal: false, onError: errPort.sendPort, onExit: exitPort.sendPort);
     if (_isDisposed) {
       _isol?.kill(priority: Isolate.immediate);
       _isol = null;
     }
   }
 
-  Function(SendPort initPort) getRunnerFunc();
-
   _enqueue(TaskMessage msg) {
     if (_isDisposed) {
       return;
     }
-    _run();
     final p = _enqueuePort;
     if (p == null) {
       _pendingTaskList.add(msg);
@@ -63,47 +74,23 @@ abstract class TaskRunner {
     }
   }
 
-  dispose() {
-    _isDisposed = true;
-    _isol?.kill(priority: Isolate.immediate);
-    _isol = null;
+  bool dispose() {
+    if (!_isDisposed) {
+      _isDisposed = true;
+      _isol?.kill(priority: Isolate.immediate);
+      _isol = null;
+      return true;
+    }
+    return false;
   }
 
-  Future<dynamic> exec(String type) {
+  Future<dynamic> exec(String type, {Object? args}) {
     if (_isDisposed) {
       return Future.error(Exception("task runner is disposed"));
     }
     final c = ReceivePort();
-    _enqueue(TaskMessage(type, c.sendPort));
+    _enqueue(TaskMessage(type, c.sendPort, args: args));
     return c.first;
-  }
-}
-
-class TestTaskRunner extends TaskRunner {
-  static x() {
-    final runner = TestTaskRunner();
-    int counter = 0;
-    Stream.periodic(Duration(seconds: 4), (x) {}).listen((event) async {
-      final res = await runner.exec("type $counter");
-      print("DONE $res");
-      counter += 1;
-    });
-  }
-
-  static _exec(SendPort initPort) {
-    TaskRunner.runnerFunc(
-      initPort,
-      onMessage: (msg) async {
-        print("processing ${msg.type}");
-        await Future.delayed(Duration(seconds: 1));
-        return "xxxxxx ${msg.type}";
-      },
-    );
-  }
-
-  @override
-  Function(SendPort initPort) getRunnerFunc() {
-    return _exec;
   }
 }
 
@@ -117,4 +104,11 @@ class TaskMessage {
   resolve(Object args) {
     this.onComplete.send(args);
   }
+}
+
+class SetupMessage {
+  final SendPort onComplete;
+  final Object? args;
+
+  const SetupMessage(this.onComplete, this.args);
 }

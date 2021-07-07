@@ -1,12 +1,24 @@
+import 'package:vgbnd/ext.dart';
+
 import 'cursor.dart';
 
 class MatrixCursor extends Cursor {
   int _position = -1;
+  List<String>? _columnNames;
   final List<List<Object?>> _rows;
 
   final Map<String, int> _columnsMap;
 
-  MatrixCursor(this._columnsMap, this._rows){
+  List<String> get columnNames {
+    if (_columnNames == null) {
+      final cols = List.of(_columnsMap.keys);
+      cols.sort((a, b) => _columnsMap[a]!.compareTo(_columnsMap[b]!));
+      _columnNames = cols;
+    }
+    return _columnNames!;
+  }
+
+  MatrixCursor(this._columnsMap, this._rows) {
     _position = -1;
   }
 
@@ -55,9 +67,7 @@ class MatrixCursor extends Cursor {
 
     if (this._position > -1 && this._position < this._rows.length) {
       final raw = this._rows[this._position][valueIndex];
-      if (raw is T) {
-        return raw;
-      }
+      return readPrimitive(raw);
     }
     return null;
   }
@@ -67,4 +77,7 @@ class MatrixCursor extends Cursor {
     _columnsMap.clear();
     _position = -1;
   }
+
+  @override
+  int get dataVersion => 0;
 }

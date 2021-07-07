@@ -1,5 +1,5 @@
 -- TABLE SCHEMA columns
-create table columns(
+create table if not exists columns(
 	id integer not null,
 	_sync_flags integer not null  default 0,
 	column_name varchar(255) not null ,
@@ -20,7 +20,7 @@ create table columns(
 );
 
 -- TABLE SCHEMA locations
-create table locations(
+create table if not exists  locations(
 	id integer not null,
 	_sync_flags integer not null  default 0,
 	location_name varchar(255),
@@ -46,13 +46,12 @@ create table locations(
 
 
 -- TABLE SCHEMA products
-create table products(
+create table if not exists  products(
 	id integer not null,
-	_sync_flags integer not null  default 0,
 	name varchar(255),
-	cost_basis float,
-	price_per_case float,
-	case_size integer,
+	costbasis float,
+	pricepercase float,
+	casesize integer,
 	source_category_name varchar(255),
 	category_name varchar(255),
 	roc float,
@@ -67,7 +66,7 @@ create table products(
 
 
 -- TABLE SCHEMA machine_column_sales
-create table machine_column_sales(
+create table if not exists  machine_column_sales(
 	id integer not null,
 	_sync_flags integer not null  default 0,
 	machine_column varchar(255),
@@ -82,7 +81,7 @@ create table machine_column_sales(
 
 
 -- TABLE SCHEMA pack_requests
-create table pack_requests(
+create table if not exists  pack_requests(
     id integer not null,
 	_sync_flags integer not null  default 0,
 	location_id integer,
@@ -92,7 +91,7 @@ create table pack_requests(
 
 
 -- TABLE SCHEMA notes
-create table notes(
+create table if not exists  notes(
     id integer not null,
 	_sync_flags integer not null  default 0,
 	content text,
@@ -101,7 +100,7 @@ create table notes(
 
 
 -- TABLE SCHEMA order_delivery_requests
-create table order_delivery_requests(
+create table if not exists  order_delivery_requests(
     id integer not null,
 	_sync_flags integer not null  default 0,
 	source_category_name varchar(255),
@@ -114,7 +113,7 @@ create table order_delivery_requests(
 
 
 -- TABLE SCHEMA location_products
-create table location_products(
+create table if not exists  location_products(
     id integer not null,
 	_sync_flags integer not null  default 0,
 	product_id integer,
@@ -129,7 +128,7 @@ create table location_products(
 
 
 -- TABLE SCHEMA packs
-create table packs(
+create table if not exists  packs(
 	id integer not null,
 	_sync_flags integer not null  default 0,
 	location_id integer,
@@ -138,7 +137,7 @@ create table packs(
 );
 
 -- TABLE SCHEMA pack_entries
-create table pack_entries(
+create table if not exists  pack_entries(
     id integer not null,
 	_sync_flags integer not null  default 0,
 
@@ -152,7 +151,7 @@ create table pack_entries(
 );
 
 -- TABLE SCHEMA stock_requests
-create table restocks(
+create table if not exists  restocks(
     id integer not null,
 	_sync_flags integer not null  default 0,
 	location_id integer,
@@ -161,7 +160,7 @@ create table restocks(
 
 
 -- TABLE SCHEMA restock_entries
-create table restock_entries(
+create table if not exists  restock_entries(
     id integer not null,
 	_sync_flags integer not null  default 0,
 	location_id integer,
@@ -173,14 +172,14 @@ create table restock_entries(
 );
 
 
-create table _schema_info(
+create table if not exists  _schema_info(
 	schema_name varchar(255) not null,
 	local_revision_num integer not null default 0,
 	id_counter integer not null default -1,
 	primary key(schema_name)
 );
 
-create table _schema_changelog(
+create table if not exists  _schema_changelog(
     schema_name varchar(255) not null,
     record_id integer not null,
     checksum varchar(255) not null,
@@ -190,7 +189,7 @@ create table _schema_changelog(
     unique(checksum)
 );
 
-create table _schema_row_id(
+create table if not exists  _schema_row_id(
     schema_name varchar(255) not null,
     local_id integer not null,
     remote_id integer not null default 0,

@@ -1,5 +1,10 @@
-
 import 'dart:collection';
+
+import '../ext.dart';
+
+// should contain only primitive values which can be directly used with sqlite3
+// For now, boolean values are going to be mapped to 1 or 0
+// datetime values are going to be stringified
 
 abstract class PrimitiveValueHolder {
   static PrimitiveValueHolder empty() {
@@ -22,22 +27,15 @@ abstract class PrimitiveValueHolder {
 }
 
 class _MapValueHolder extends PrimitiveValueHolder {
+
+
   Map<String, dynamic> _values;
 
   _MapValueHolder(this._values);
 
   T? getValue<T>(String key) {
     if (_values.containsKey(key)) {
-      var v = _values[key];
-      if (v is T) {
-        return v;
-      }
-      if (T is DateTime) {
-        var raw = getValue<String>(key);
-        if (raw != null) {
-          return DateTime.tryParse(raw) as T?;
-        }
-      }
+      return readPrimitive<T>(_values[key]);
     }
     return null;
   }
@@ -46,6 +44,9 @@ class _MapValueHolder extends PrimitiveValueHolder {
   putValue(String key, dynamic value) {
     if (value is DateTime) {
       value = value.toIso8601String();
+    }
+    if (value is bool) {
+      value = value == true ? 1 : 0;
     }
     _values[key] = value;
   }

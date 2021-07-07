@@ -1,6 +1,7 @@
 import 'dart:collection';
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:uri/uri.dart';
 import 'package:vgbnd/sync/schema.dart';
@@ -34,8 +35,10 @@ class ApiResponse<T> {
 }
 
 class Api {
-  Future<ApiResponse<http.ByteStream>> _execRequest(http.Request req) async {
+  Future<ApiResponse<http.ByteStream>> _execRequest(ApiRequestBuilder reqBuilder) async {
     try {
+      final req = await reqBuilder.request();
+      print("API REQUEST [${req.method}]${req.url}");
       final resp = await req.send();
       if (resp.statusCode == 200) {
         return ApiResponse.success(resp.stream);
@@ -46,8 +49,8 @@ class Api {
     }
   }
 
-  Future<ApiResponse<List<SchemaVersion>>> schemaVersions() async {
-    final req = ApiRequestBuilder(HttpMethod.GET, "collections/revisions").request();
+  Future<ApiResponse<List<SchemaVersion>>> schemaVersions(UserAccount account) async {
+    final req = ApiRequestBuilder(HttpMethod.GET, "collections/revisions").forAccount(account);
     final resp = await _execRequest(req);
     final x = await resp.map<List<SchemaVersion>>((body) async {
       final List<SchemaVersion> revs = [];
@@ -69,7 +72,7 @@ class Api {
     return x;
   }
 
-  Future<ApiResponse<List<RemoteSchemaChangeset>>> changes(List<SchemaVersion> versions) async {
+  Future<ApiResponse<List<RemoteSchemaChangeset>>> changes(UserAccount account, List<SchemaVersion> versions) async {
     if (versions.isEmpty) {
       return ApiResponse.success(List.empty());
     }
@@ -83,22 +86,22 @@ class Api {
       params["since[${version.schemaName}]"] = version.revNum.toString();
     }
 
-    final resp = await ApiRequestBuilder(HttpMethod.GET, "collections/import").addQueryParams(params).request().send();
+    final req = ApiRequestBuilder(HttpMethod.GET, "collections/import").forAccount(account).addQueryParams(params);
+    final resp = await _execRequest(req);
 
-    if (resp.statusCode == 200) {
+    final ApiResponse<List<RemoteSchemaChangeset>> x = await resp.map((body) async {
       List<RemoteSchemaChangeset> res = [];
-
-      final rawJson = await resp.stream.bytesToString();
+      final rawJson = await body.bytesToString();
       final Map<String, dynamic> respBody = json.decode(rawJson);
 
       for (var key in respBody.keys) {
         res.add(RemoteSchemaChangeset.fromResponseJson(key, respBody[key]));
       }
 
-      return ApiResponse.success(res);
-    }
+      return res;
+    });
 
-    return ApiResponse.failure("", resp.statusCode);
+    return x;
   }
 }
 
@@ -109,7 +112,8 @@ class ApiRequestBuilder {
   Object? _body;
   String _path;
   Map<String, String>? _qsParams;
-  Map<String, String>? _headers;
+  UserAccount? _userAccount;
+  Map<String, String> _headers = {"Accept": "application/json"};
 
   //static final _baseApiUri = 'https://apim.vagabondvending.com/api/public';
 
@@ -147,10 +151,11 @@ class ApiRequestBuilder {
         _method = "DELETE";
         break;
     }
-    addHeaders({
-      "XAUTHENTICATION": "bonnie@vagabondvending.com:0a7e2fa2b51922cf327764147fe63afc",
-      "Accept": "application/json"
-    });
+  }
+
+  ApiRequestBuilder forAccount(UserAccount account) {
+    _userAccount = account;
+    return this;
   }
 
   ApiRequestBuilder addQueryParams(Map<String, String> params) {
@@ -161,11 +166,12 @@ class ApiRequestBuilder {
     return this;
   }
 
+  bool hasHeader(String key) {
+    return _headers.containsKey(key);
+  }
+
   ApiRequestBuilder addHeaders(Map<String, String> params) {
-    if (_headers == null) {
-      _headers = HashMap();
-    }
-    _headers!.addAll(params);
+    _headers.addAll(params);
     return this;
   }
 
@@ -174,7 +180,12 @@ class ApiRequestBuilder {
     return this;
   }
 
-  http.Request request() {
+  Future<http.Request> request() async {
+    final account = _userAccount;
+    if (account != null) {
+      await account.sign(this);
+    }
+
     final url = ApiRequestBuilder.getUri(_path, _qsParams);
 
     final req = http.Request(_method, url);
@@ -183,9 +194,7 @@ class ApiRequestBuilder {
       req.body = jsonEncode(_body);
     }
 
-    if (_headers != null) {
-      req.headers.addAll(_headers!);
-    }
+    req.headers.addAll(_headers);
 
     return req;
   }
@@ -204,4 +213,40 @@ class RemoteSchemaChangeset {
   final List<dynamic> data;
 
   RemoteSchemaChangeset(this.collectionName, this.remoteColumnNames, this.data);
+}
+
+class UserAccount {
+  int id;
+  String email;
+  String password;
+
+  static UserAccount current = UserAccount(id: 649, email: "bonnie@vagabondvending.com", password: "bonnierocks");
+
+  UserAccount({required this.id, required this.email, required this.password});
+
+  UserAccount.fromJson(Map<String, dynamic> json)
+      : id = json['id'],
+        email = json['email'],
+        password = json['password'];
+
+  Map<String, dynamic> toJson() => {
+        "id": id,
+        "email": email,
+        "password": password,
+      };
+
+  sign(ApiRequestBuilder req) {
+    final xdate = DateTime.now().millisecondsSinceEpoch.toString();
+    final toSign = "$password$xdate";
+    final encoded = md5.convert(utf8.encode(toSign)).toString();
+    final authToken = "$email:$encoded";
+
+    final authHeaderName = "XAUTHENTICATION";
+    if (!req.hasHeader(authHeaderName)) {
+      req.addHeaders({
+        authHeaderName: authToken,
+        "XDATE": xdate,
+      });
+    }
+  }
 }
