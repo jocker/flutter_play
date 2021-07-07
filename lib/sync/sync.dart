@@ -10,7 +10,10 @@ import 'package:vgbnd/bkg/task_runner.dart';
 import 'package:vgbnd/data/db.dart';
 import 'package:vgbnd/models/coil.dart';
 import 'package:vgbnd/models/location.dart';
+import 'package:vgbnd/models/machine_column_sales.dart';
 import 'package:vgbnd/models/product.dart';
+import 'package:vgbnd/models/productlocation.dart';
+import 'package:vgbnd/sync/schema.dart';
 
 import '_local_sync_engine.dart';
 
@@ -30,12 +33,20 @@ class SyncEngineIsolate {
   }
 
   Future<bool> pullChanges() async {
-    final versionsResp = await _api.schemaVersions(_account);
-    if (!versionsResp.isSuccess) {
-      return false;
+    List<SchemaVersion> unsynced = [];
+    var includeDeleted = false;
+    if (!_localEngine.isEmpty) {
+      final versionsResp = await _api.schemaVersions(_account);
+      if (!versionsResp.isSuccess) {
+        return false;
+      }
+      unsynced = _localEngine.getUnsynced(versionsResp.body!);
+      includeDeleted = true;
+    } else {
+      unsynced.addAll(SyncEngine.SYNC_SCHEMAS.map((e) => SchemaVersion(e, 0)));
     }
-    final unsynced = _localEngine.getUnsynced(versionsResp.body!);
-    final unsyncedResp = await _api.changes(_account, unsynced);
+
+    final unsyncedResp = await _api.changes(_account, unsynced, includeDeleted: includeDeleted);
     if (!unsyncedResp.isSuccess) {
       return false;
     }
@@ -112,7 +123,13 @@ class SyncEngine extends TaskRunner {
     return _instances[account.id]!;
   }
 
-  static const SYNC_SCHEMAS = [Coil.SCHEMA_NAME, Location.SCHEMA_NAME, Product.SCHEMA_NAME];
+  static const SYNC_SCHEMAS = [
+    Coil.SCHEMA_NAME,
+    Location.SCHEMA_NAME,
+    Product.SCHEMA_NAME,
+    ProductLocation.SCHEMA_NAME,
+    MachineColumnSale.SCHEMA_NAME
+  ];
 
   static _runTasks(SetupMessage setupMessage) async {
     final args = setupMessage.args as Map<String, dynamic>;

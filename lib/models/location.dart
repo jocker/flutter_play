@@ -3,7 +3,7 @@ import 'package:vgbnd/sync/schema.dart';
 import 'base_model.dart';
 
 class Location extends BaseModel<Location> {
-  static const String SCHEMA_NAME = 'locations';
+  static const SchemaName SCHEMA_NAME = 'locations';
 
   static final schema = SyncDbSchema<Location>(SCHEMA_NAME, allocate: () => Location(), columns: [
     SyncDbColumn.id(),

@@ -1,9 +1,10 @@
+import 'package:vgbnd/models/location.dart';
 import 'package:vgbnd/sync/schema.dart';
 
 import 'base_model.dart';
 
 class Coil extends BaseModel<Coil> {
-  static const String SCHEMA_NAME = 'columns';
+  static const SchemaName SCHEMA_NAME = 'columns';
 
   static final schema = SyncDbSchema<Coil>(SCHEMA_NAME, allocate: () => Coil(), columns: [
     SyncDbColumn.id(),
@@ -30,6 +31,7 @@ class Coil extends BaseModel<Coil> {
     ),
     SyncDbColumn(
       "location_id",
+      referenceOf: Location.SCHEMA_NAME,
       readAttribute: (dest) => dest.locationId,
       assignAttribute: (value, key, dest) {
         dest.locationId = value.getValue(key) ?? dest.locationId;

@@ -8,10 +8,19 @@ import 'package:vgbnd/sync/sync.dart';
 
 class LocalSyncEngine {
   final DbConn _dbConn;
-
+  bool _isDisposed = false;
   final _changedStreamController = StreamController<SchemaChangedEvent>.broadcast();
 
   LocalSyncEngine(this._dbConn);
+
+  bool get isEmpty{
+    for (var local in this.localSchemaInfos.values) {
+      if(local.revNum > 0){
+        return false;
+      }
+    }
+    return true;
+  }
 
   List<SchemaVersion> getUnsynced(List<SchemaVersion> remoteVersions) {
     List<SchemaVersion> needSync = [];
@@ -158,7 +167,7 @@ class LocalSyncEngine {
       for (dynamic raw in changeset.data) {
         final row = raw.cast<Object?>();
 
-        if (idColIndex >= 0 && row[deletedColIndex] == true) {
+        if (deletedColIndex >= 0 && idColIndex >= 0 && row[deletedColIndex] == true) {
           final id = row[idColIndex];
           deleteItemIds.add(id.toString());
         }
@@ -196,7 +205,7 @@ class LocalSyncEngine {
 
       if (rawRevision != null) {
         final revNum = SyncDbSchema.parseRevNum(rawRevision);
-        if (revNum > 0) {
+        if (revNum != null) {
           _setRevNumber(schema.schemaName, revNum, db: tx);
           changesetRevNum = revNum;
         }
@@ -204,7 +213,7 @@ class LocalSyncEngine {
 
       return true;
     });
-    if(changesetRevNum > 0){
+    if (changesetRevNum > 0) {
       localSchemaInfos[changeset.collectionName]!.invalidateVersion();
     }
     return changesetRevNum;
@@ -232,6 +241,14 @@ class LocalSyncEngine {
 
   Stream<SchemaChangedEvent> onSchemaChanged() {
     return _changedStreamController.stream;
+  }
+
+  dispose() {
+    if (!_isDisposed) {
+      _isDisposed = true;
+      _dbConn.dispose();
+      _changedStreamController.close();
+    }
   }
 }
 

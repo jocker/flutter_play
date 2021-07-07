@@ -3,7 +3,7 @@ import 'package:vgbnd/sync/schema.dart';
 import 'base_model.dart';
 
 class Product extends BaseModel<Product> {
-  static const String SCHEMA_NAME = 'products';
+  static const SchemaName SCHEMA_NAME = 'products';
 
   static final schema = SyncDbSchema<Product>(SCHEMA_NAME, allocate: () => Product(), columns: [
     SyncDbColumn.id(),

@@ -59,7 +59,7 @@ class Api {
 
       x.forEach((schemaName, value) {
         if (SyncDbSchema.isRegisteredSchema(schemaName)) {
-          final revNum = DateTime.tryParse(value)?.millisecondsSinceEpoch;
+          final revNum = SyncDbSchema.parseRevNum(value);
           if (revNum != null) {
             revs.add(SchemaVersion(schemaName, revNum));
           }
@@ -72,7 +72,8 @@ class Api {
     return x;
   }
 
-  Future<ApiResponse<List<RemoteSchemaChangeset>>> changes(UserAccount account, List<SchemaVersion> versions) async {
+  Future<ApiResponse<List<RemoteSchemaChangeset>>> changes(UserAccount account, List<SchemaVersion> versions,
+      {bool? includeDeleted}) async {
     if (versions.isEmpty) {
       return ApiResponse.success(List.empty());
     }
@@ -80,6 +81,7 @@ class Api {
     final params = {
       "raw": "true",
       "mode": "rows",
+      "include_deleted": (includeDeleted == true) ? "true" : "false",
     };
 
     for (var version in versions) {
@@ -115,9 +117,9 @@ class ApiRequestBuilder {
   UserAccount? _userAccount;
   Map<String, String> _headers = {"Accept": "application/json"};
 
-  //static final _baseApiUri = 'https://apim.vagabondvending.com/api/public';
+  static final _baseApiUri = 'https://apim.vagabondvending.com/api/public';
 
-  static final _baseApiUri = 'http://192.168.100.152:3000/api/public';
+  //static final _baseApiUri = 'http://192.168.100.152:3000/api/public';
 
   static Uri getUri(String path, [Map<String, String>? qsParams]) {
     if (path.startsWith("/")) {

@@ -1,17 +1,34 @@
+import 'package:flutter/material.dart';
 import 'package:vgbnd/models/base_model.dart';
 import 'package:vgbnd/models/coil.dart';
 import 'package:vgbnd/models/location.dart';
+import 'package:vgbnd/models/machine_column_sales.dart';
 import 'package:vgbnd/models/product.dart';
+import 'package:vgbnd/models/productlocation.dart';
 import 'package:vgbnd/sync/value_holder.dart';
 
+typedef SchemaName = String;
+
 class SchemaVersion {
-  String schemaName;
+  SchemaName schemaName;
   int revNum;
 
   SchemaVersion(this.schemaName, this.revNum);
 }
 
+
+
 class SyncDbColumn<T> {
+  static SyncDbColumn<T> readonly<T extends BaseModel>(String colName, {SchemaName? referenceOf}) {
+    return SyncDbColumn<T>(
+      "id",
+      readAttribute: (dest) => throw UnsupportedError("unsupported"),
+      assignAttribute: (value, key, dest) {
+        throw UnsupportedError("unsupported");
+      },
+    );
+  }
+
   static SyncDbColumn<T> id<T extends BaseModel>() {
     return SyncDbColumn<T>(
       "id",
@@ -23,6 +40,7 @@ class SyncDbColumn<T> {
   }
 
   String name;
+  SchemaName? referenceOf;
   Function(PrimitiveValueHolder value, String key, T dest) assignAttribute;
   dynamic Function(T dest) readAttribute;
   List<SyncDbRemoteOp> syncOps;
@@ -30,7 +48,8 @@ class SyncDbColumn<T> {
   SyncDbColumn(this.name,
       {required this.assignAttribute,
       required this.readAttribute,
-      this.syncOps = const [SyncDbRemoteOp.Read, SyncDbRemoteOp.Write]});
+      this.syncOps = const [SyncDbRemoteOp.Read, SyncDbRemoteOp.Write],
+      this.referenceOf});
 
   assign() {}
 }
@@ -38,13 +57,13 @@ class SyncDbColumn<T> {
 enum SyncDbRemoteOp { Read, Write }
 
 class SyncDbSchema<T> {
-  static int parseRevNum(String raw) {
+  static int? parseRevNum(String raw) {
     var revNum = DateTime.tryParse(raw + 'Z');
     if (revNum == null) {
       revNum = DateTime.tryParse(raw);
     }
 
-    return revNum?.millisecondsSinceEpoch ?? 0;
+    return revNum?.millisecondsSinceEpoch;
   }
 
   static SyncDbSchema<dynamic>? byNameStrict(String name) {
@@ -67,18 +86,25 @@ class SyncDbSchema<T> {
         return Location.schema;
       case Product.SCHEMA_NAME:
         return Product.schema;
+      case ProductLocation.SCHEMA_NAME:
+        return ProductLocation.schema;
+      case MachineColumnSale.SCHEMA_NAME:
+        return MachineColumnSale.schema;
     }
 
     return null;
   }
 
-  String schemaName;
+  SchemaName schemaName;
   late String tableName;
   List<SyncDbColumn<T>> columns;
   T Function() allocate;
+  late final List<SyncDbRemoteOp> syncOps;
 
-  SyncDbSchema(this.schemaName, {required this.columns, required this.allocate, String? tableName}) {
+
+  SyncDbSchema(this.schemaName, {required this.columns, required this.allocate, String? tableName, List<SyncDbRemoteOp>? syncOps}) {
     this.tableName = tableName ?? this.schemaName;
+    this.syncOps = syncOps ?? [SyncDbRemoteOp.Read, SyncDbRemoteOp.Write];
   }
 
   PrimitiveValueHolder getValues(T obj) {

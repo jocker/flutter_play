@@ -62,6 +62,16 @@ create table if not exists  products(
     primary key(id)
 );
 
+-- TABLE SCHEMA location_products
+create table if not exists  productlocation(
+    id integer not null,
+	product_id integer,
+	location_id integer,
+	unitcount integer,
+    primary key(id)
+);
+
+
 
 
 
@@ -112,15 +122,6 @@ create table if not exists  order_delivery_requests(
 
 
 
--- TABLE SCHEMA location_products
-create table if not exists  location_products(
-    id integer not null,
-	_sync_flags integer not null  default 0,
-	product_id integer,
-	location_id integer,
-	unit_count integer,
-    primary key(id)
-);
 
 
 
