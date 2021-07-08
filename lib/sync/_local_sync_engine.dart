@@ -210,7 +210,7 @@ class LocalSyncEngine {
           changesetRevNum = revNum;
         }
       }
-
+      schema.onChangesetApplied(changeset, tx);
       return true;
     });
     if (changesetRevNum > 0) {

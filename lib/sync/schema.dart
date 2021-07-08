@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:vgbnd/api/api.dart';
+import 'package:vgbnd/data/db.dart';
 import 'package:vgbnd/models/base_model.dart';
 import 'package:vgbnd/models/coil.dart';
 import 'package:vgbnd/models/location.dart';
@@ -144,4 +146,12 @@ class SyncDbSchema<T> {
     }
     return m;
   }
+
+  onChangesetApplied(RemoteSchemaChangeset changeset, Transaction tx){
+    // any cleanup that should happen after the changeset data is saved in the db
+    // this should be a quick operation as we don't want to keep the database locked for a long period of time
+  }
+
+
+
 }

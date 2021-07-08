@@ -59,7 +59,7 @@ class SyncEngineIsolate {
     }
 
     for (var changeset in unsyncedResp.body!) {
-      _localEngine.saveRemoteChangeset(changeset);
+      int revNum = _localEngine.saveRemoteChangeset(changeset);
     }
 
     return true;
