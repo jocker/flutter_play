@@ -1,12 +1,13 @@
-import 'package:flutter/material.dart';
 import 'package:vgbnd/api/api.dart';
 import 'package:vgbnd/data/db.dart';
+import 'package:vgbnd/ext.dart';
 import 'package:vgbnd/models/base_model.dart';
 import 'package:vgbnd/models/coil.dart';
 import 'package:vgbnd/models/location.dart';
 import 'package:vgbnd/models/machine_column_sales.dart';
 import 'package:vgbnd/models/product.dart';
 import 'package:vgbnd/models/productlocation.dart';
+import 'package:vgbnd/sync/constants.dart';
 import 'package:vgbnd/sync/value_holder.dart';
 
 typedef SchemaName = String;
@@ -17,8 +18,6 @@ class SchemaVersion {
 
   SchemaVersion(this.schemaName, this.revNum);
 }
-
-
 
 class SyncDbColumn<T> {
   static SyncDbColumn<T> readonly<T extends BaseModel>(String colName, {SchemaName? referenceOf}) {
@@ -45,18 +44,16 @@ class SyncDbColumn<T> {
   SchemaName? referenceOf;
   Function(PrimitiveValueHolder value, String key, T dest) assignAttribute;
   dynamic Function(T dest) readAttribute;
-  List<SyncDbRemoteOp> syncOps;
+  List<SyncSchemaOp> syncOps;
 
   SyncDbColumn(this.name,
       {required this.assignAttribute,
       required this.readAttribute,
-      this.syncOps = const [SyncDbRemoteOp.Read, SyncDbRemoteOp.Write],
+      this.syncOps = const [SyncSchemaOp.RemoteRead, SyncSchemaOp.RemoteWrite],
       this.referenceOf});
 
   assign() {}
 }
-
-enum SyncDbRemoteOp { Read, Write }
 
 class SyncDbSchema<T> {
   static int? parseRevNum(String raw) {
@@ -66,6 +63,18 @@ class SyncDbSchema<T> {
     }
 
     return revNum?.millisecondsSinceEpoch;
+  }
+
+  bool get remoteReadable {
+    return this.syncOps.contains(SyncSchemaOp.RemoteRead);
+  }
+
+  bool get remoteWritable {
+    return this.syncOps.contains(SyncSchemaOp.RemoteWrite);
+  }
+
+  SyncDbColumn<T>? get idColumn {
+    return columns.firstWhereOrNull((col) => col.name == "id");
   }
 
   static SyncDbSchema<dynamic>? byNameStrict(String name) {
@@ -101,12 +110,12 @@ class SyncDbSchema<T> {
   late String tableName;
   List<SyncDbColumn<T>> columns;
   T Function() allocate;
-  late final List<SyncDbRemoteOp> syncOps;
+  late final List<SyncSchemaOp> syncOps;
 
-
-  SyncDbSchema(this.schemaName, {required this.columns, required this.allocate, String? tableName, List<SyncDbRemoteOp>? syncOps}) {
+  SyncDbSchema(this.schemaName,
+      {required this.columns, required this.allocate, String? tableName, List<SyncSchemaOp>? syncOps}) {
     this.tableName = tableName ?? this.schemaName;
-    this.syncOps = syncOps ?? [SyncDbRemoteOp.Read, SyncDbRemoteOp.Write];
+    this.syncOps = syncOps ?? [SyncSchemaOp.RemoteRead, SyncSchemaOp.RemoteWrite];
   }
 
   PrimitiveValueHolder getValues(T obj) {
@@ -121,11 +130,11 @@ class SyncDbSchema<T> {
   }
 
   List<SyncDbColumn<T>> get remoteReadableColumns {
-    return columns.where((element) => element.syncOps.contains(SyncDbRemoteOp.Read)).toList(growable: false);
+    return columns.where((element) => element.syncOps.contains(SyncSchemaOp.RemoteRead)).toList(growable: false);
   }
 
   List<SyncDbColumn<T>> get remoteWriteableColumns {
-    return columns.where((element) => element.syncOps.contains(SyncDbRemoteOp.Write)).toList(growable: false);
+    return columns.where((element) => element.syncOps.contains(SyncSchemaOp.RemoteWrite)).toList(growable: false);
   }
 
   T createObject(Map<String, dynamic>? values) {
@@ -147,11 +156,8 @@ class SyncDbSchema<T> {
     return m;
   }
 
-  onChangesetApplied(RemoteSchemaChangeset changeset, Transaction tx){
+  onChangesetApplied(RemoteSchemaChangeset changeset, Transaction tx) {
     // any cleanup that should happen after the changeset data is saved in the db
     // this should be a quick operation as we don't want to keep the database locked for a long period of time
   }
-
-
-
 }

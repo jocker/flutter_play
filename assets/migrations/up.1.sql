@@ -181,13 +181,15 @@ create table if not exists  _schema_info(
 );
 
 create table if not exists  _schema_changelog(
+    id varchar(255) not null,
     schema_name varchar(255) not null,
     record_id integer not null,
-    checksum varchar(255) not null,
     operation tinyint not null,
-    created_at timestamp not null default current_timestamp,
     data text,
-    unique(checksum)
+    error_messages text,
+    status tinyint not null default 0,
+    created_at timestamp not null default current_timestamp,
+    primary key(uuid)
 );
 
 create table if not exists  _schema_row_id(

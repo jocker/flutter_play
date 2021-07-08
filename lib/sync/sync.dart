@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'dart:io';
 import 'dart:isolate';
 
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:vgbnd/api/api.dart';
@@ -14,66 +15,67 @@ import 'package:vgbnd/models/machine_column_sales.dart';
 import 'package:vgbnd/models/pack.dart';
 import 'package:vgbnd/models/product.dart';
 import 'package:vgbnd/models/productlocation.dart';
+import 'package:vgbnd/sync/_remote_repository.dart';
 import 'package:vgbnd/sync/schema.dart';
 
-import '_local_sync_engine.dart';
+import '_local_repository.dart';
+import 'net_connectivity_info.dart';
 
 const _MESSAGE_TYPE_PULL_CHANGES = "pull_changes",
     _MESSAGE_TYPE_INVALIDATE_CACHE = "invalidate_cache",
-    _MESSAGE_TYPE_WATCH_SCHEMA_CHANGED = "watch_schema_changed";
+    _MESSAGE_TYPE_WATCH_SCHEMA_CHANGED = "watch_schema_changed",
+    _MESSAGE_TYPE_SET_CONN_INFO = "set_conn_info";
 
 class SyncEngineIsolate {
-  late final LocalSyncEngine _localEngine;
-  late final Api _api;
+  late final LocalRepository _localRepository;
+  late final RemoteRepository _remoteRepository;
+
   final UserAccount _account;
   final DbConn _db;
+  final NetConnectivityInfo _connectivityInfo;
 
-  SyncEngineIsolate(this._db, this._account) {
-    _localEngine = LocalSyncEngine(_db);
-    _api = Api();
+  SyncEngineIsolate(this._db, this._account, this._connectivityInfo) {
+    _localRepository = LocalRepository(_db);
+    _remoteRepository = RemoteRepository(this._account, this._connectivityInfo);
   }
 
   Future<bool> pullChanges() async {
     List<SchemaVersion> unsynced = [];
     var includeDeleted = false;
-    if (!_localEngine.isEmpty) {
-      final versionsResp = await _api.schemaVersions(_account);
+    if (!_localRepository.isEmpty) {
+      final versionsResp = await _remoteRepository.schemaVersions();
       if (!versionsResp.isSuccess) {
         return false;
       }
-      unsynced = _localEngine.getUnsynced(versionsResp.body!);
+      unsynced = _localRepository.getUnsynced(versionsResp.body!);
       includeDeleted = true;
     } else {
       unsynced.addAll(SyncEngine.SYNC_SCHEMAS.map((e) => SchemaVersion(e, 0)));
     }
 
-    unsynced = unsynced.where((element) =>
-    SyncDbSchema
-        .byName(element.schemaName)
-        ?.syncOps
-        .contains(SyncDbRemoteOp.Read) ?? false).toList();
+    unsynced = unsynced.where((element) => SyncDbSchema.byName(element.schemaName)?.remoteReadable ?? false).toList();
 
-    final unsyncedResp = await _api.changes(_account, unsynced, includeDeleted: includeDeleted);
+    final unsyncedResp = await _remoteRepository.changes(unsynced, includeDeleted: includeDeleted);
     if (!unsyncedResp.isSuccess) {
       return false;
     }
 
     for (var changeset in unsyncedResp.body!) {
-      int revNum = _localEngine.saveRemoteChangeset(changeset);
+      int revNum = _localRepository.saveRemoteChangeset(changeset);
     }
 
     return true;
   }
 
   Future<bool> invalidateLocalCache() async {
-    _localEngine.reset();
+    _localRepository.reset();
     return await pullChanges();
   }
 
   Future<WatchSchemasReply> watchSchemas(WatchSchemasMessage ask) async {
     var prevNum = _getSchemaSignature(ask.schemas);
     final initial = prevNum;
-    final subscription = _localEngine.onSchemaChanged().listen((event) {
+    final subscription = _localRepository.onSchemaChanged().listen((event) {
       if (ask.schemas.contains(event.schemaName)) {
         var newNum = _getSchemaSignature(ask.schemas);
         if (prevNum != newNum) {
@@ -95,7 +97,7 @@ class SyncEngineIsolate {
   _getSchemaSignature(List<String> schemaNames) {
     int res = 0;
     for (var name in schemaNames) {
-      final versionNum = _localEngine.localSchemaInfos[name]?.versionNumber ?? -1;
+      final versionNum = _localRepository.localSchemaInfos[name]?.versionNumber ?? -1;
       if (versionNum < 0) {
         continue;
       }
@@ -113,6 +115,9 @@ class SyncEngineIsolate {
       case _MESSAGE_TYPE_WATCH_SCHEMA_CHANGED:
         final ask = message.args as WatchSchemasMessage;
         return await watchSchemas(ask);
+      case _MESSAGE_TYPE_SET_CONN_INFO:
+        _connectivityInfo.setValue(message.args as int);
+        return;
       default:
         throw Exception("SyncEngineBackEnd doesn't know how to handle ${message.type}");
     }
@@ -144,12 +149,14 @@ class SyncEngine extends TaskRunner {
     final account = UserAccount.fromJson(args['account']);
 
     final db = await DbConn.open(args['db_path'], runMigrations: false);
-    final backend = SyncEngineIsolate(db, account);
+    final backend = SyncEngineIsolate(db, account, NetConnectivityInfo(args['conn_info']));
 
     TaskRunner.runnerFunc(setupMessage.onComplete, processMessage: backend.processMessage);
   }
 
   final UserAccount _userAccount;
+  final NetConnectivityInfo _connectivityInfo = NetConnectivityInfo(0);
+  late final StreamSubscription<ConnectivityResult> _subConnectivity;
 
   SyncEngine(this._userAccount) {
     scheduleMicrotask(() async {
@@ -157,8 +164,28 @@ class SyncEngine extends TaskRunner {
       final dbPath = await getLocalDatabasePath();
       await DbConn.runMigrations(dbPath);
 
-      Map<String, dynamic> args = {"account": _userAccount.toJson(), "db_path": dbPath};
+      await _setupConnectivityInfo();
+
+      Map<String, dynamic> args = {
+        "account": _userAccount.toJson(),
+        "db_path": dbPath,
+        "conn_info": _connectivityInfo.value
+      };
       setup(initIsolate: _runTasks, setupArgs: args);
+    });
+  }
+
+  _setupConnectivityInfo() async {
+    final conn = Connectivity();
+
+    _connectivityInfo.onChanged((value) {
+      emit(_MESSAGE_TYPE_SET_CONN_INFO, args: value);
+    });
+
+    _connectivityInfo.setConnectivityResult(await conn.checkConnectivity());
+
+    _subConnectivity = conn.onConnectivityChanged.listen((event) {
+      _connectivityInfo.setConnectivityResult(event);
     });
   }
 
@@ -181,7 +208,7 @@ class SyncEngine extends TaskRunner {
   Future<Stream<int>> watchSchemas(List<String> schemaNames) async {
     final p = ReceivePort();
     WatchSchemasReply reply =
-    await this.exec(_MESSAGE_TYPE_WATCH_SCHEMA_CHANGED, args: WatchSchemasMessage(p.sendPort, schemaNames));
+        await this.exec(_MESSAGE_TYPE_WATCH_SCHEMA_CHANGED, args: WatchSchemasMessage(p.sendPort, schemaNames));
 
     StreamController<int> controller = StreamController<int>(
       onCancel: () {
@@ -203,6 +230,16 @@ class SyncEngine extends TaskRunner {
     await Directory(databasesPath).create(recursive: true);
 
     return path.join(databasesPath, "data_${_userAccount.id}.db");
+  }
+
+  @override
+  bool dispose() {
+    if (super.dispose()) {
+      _instances.remove(_userAccount.id);
+      _subConnectivity.cancel();
+      return true;
+    }
+    return false;
   }
 }
 

@@ -1,4 +1,5 @@
 import 'package:vgbnd/models/base_model.dart';
+import 'package:vgbnd/sync/constants.dart';
 import 'package:vgbnd/sync/schema.dart';
 
 class Pack extends BaseModel<Pack> {
@@ -8,7 +9,7 @@ class Pack extends BaseModel<Pack> {
   int? restockId;
 
   static final schema = SyncDbSchema<Pack>(SCHEMA_NAME,
-      syncOps: [SyncDbRemoteOp.Write],
+      syncOps: [SyncSchemaOp.RemoteWrite],
       allocate: () => Pack(),
       columns: [
         SyncDbColumn.id(),

@@ -8,9 +8,35 @@ import 'package:vgbnd/sync/sync.dart';
 import 'package:vgbnd/widgets/numeric_stepper_input.dart';
 
 class OverviewPage extends StatelessWidget {
+  bool _listening = false;
 
   OverviewPage() : super() {
     print("aaaaaa");
+    print("aaaaaa");
+
+    () async {
+      if (_listening) {
+        return;
+      }
+      _listening = true;
+      final dbPath = "/data/user/0/com.dtg.vagabond.vgbnd/app_flutter/databases/data_649.db";
+      final db = await DbConn.open(dbPath, runMigrations: false);
+
+      /*final values = db.selectOne("select * from columns limit 1");
+      final int id = db.selectValue("select id from locations limit 1;");
+      final strId = db.selectValue<String>("select id from locations limit 1;");*/
+      final values = db.selectOne("select * from columns where id=615586");
+      final coil = Coil.schema.createObject(values);
+      final v = coil.dumpValues();
+      print("xxxxx");
+
+      final stream = await SyncEngine.forAccount(UserAccount.current).watchSchemas(SyncEngine.SYNC_SCHEMAS);
+      StreamSubscription? subscription;
+      subscription = stream.listen((version) {
+        print("SCHEMA CHANGED $version");
+        //subscription?.cancel();
+      });
+    }();
   }
 
   @override
@@ -32,6 +58,14 @@ class OverviewPage extends StatelessWidget {
               ),
               Positioned(top: 3, left: 3, child: FloatingActionButton(onPressed: () {}))
             ],
+          ),
+          TextButton(
+            child: Text("Update"),
+            onPressed: () async {
+              final api = Api();
+              final resp = await api.updateSchemaObject(UserAccount.current, "columns", 615586, {"column_name": "123"});
+              print("done");
+            },
           ),
           TextButton(
             child: Text("Sync"),

@@ -24,11 +24,25 @@ abstract class PrimitiveValueHolder {
   putNonNull(String key, dynamic value);
 
   clear();
+
+  PrimitiveValueHolder diffFrom(PrimitiveValueHolder other) {
+    final myValues = this.toMap();
+    final otherValues = other.toMap();
+
+    final keys = Set<String>()..addAll(myValues.keys)..addAll(otherValues.keys);
+
+    Map<String, dynamic> diff = {};
+    for (var key in keys) {
+      if (myValues[key] != otherValues[key]) {
+        diff[key] = otherValues[key];
+      }
+    }
+
+    return PrimitiveValueHolder.fromMap(diff);
+  }
 }
 
 class _MapValueHolder extends PrimitiveValueHolder {
-
-
   Map<String, dynamic> _values;
 
   _MapValueHolder(this._values);

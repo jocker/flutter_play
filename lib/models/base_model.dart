@@ -8,9 +8,17 @@ abstract class BaseModel<T> {
     return this.id == null;
   }
 
+  int getId() {
+    return id ?? 0;
+  }
+
   SyncDbSchema<T> getSchema();
 
-  PrimitiveValueHolder dumpValues(){
+  PrimitiveValueHolder dumpValues() {
     return getSchema().dumpObject(this as T);
+  }
+
+  PrimitiveValueHolder diffFrom(BaseModel<T> other) {
+    return dumpValues().diffFrom(other.dumpValues());
   }
 }

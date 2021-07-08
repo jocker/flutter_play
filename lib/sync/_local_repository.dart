@@ -3,33 +3,115 @@ import 'dart:collection';
 
 import 'package:vgbnd/api/api.dart';
 import 'package:vgbnd/data/db.dart';
+import 'package:vgbnd/ext.dart';
 import 'package:vgbnd/sync/schema.dart';
 import 'package:vgbnd/sync/sync.dart';
+import 'package:vgbnd/sync/value_holder.dart';
 
-class LocalSyncEngine {
+import '../ext.dart';
+
+class LocalRepository {
   final DbConn _dbConn;
   bool _isDisposed = false;
   final _changedStreamController = StreamController<SchemaChangedEvent>.broadcast();
 
-  LocalSyncEngine(this._dbConn);
+  LocalRepository(this._dbConn);
 
-  bool get isEmpty{
+  bool get isEmpty {
     for (var local in this.localSchemaInfos.values) {
-      if(local.revNum > 0){
+      if (local.revNum > 0) {
         return false;
       }
     }
     return true;
   }
 
+  DbConn get dbConn {
+    return _dbConn;
+  }
+
+  bool isLocalId(int id) {
+    return id < 0;
+  }
+
+  T? loadById<T>(SyncDbSchema<T> schema, int id) {
+    final idColName = schema.idColumn?.name;
+    if (idColName == null) {
+      return null;
+    }
+
+    return loadFirstBy(schema, {idColName: id});
+  }
+
+  T? loadFirstBy<T>(SyncDbSchema<T> schema, Map<String, dynamic> where) {
+    List<String> wheres = [];
+    List<String> params = [];
+
+    for (var k in where.keys) {
+      wheres.add("$k=?");
+      params.add(where[k]);
+    }
+
+    final values = _dbConn.selectOne("select * from ${schema.tableName} where ${wheres.join(" and ")} limit 1", params);
+    if (values == null) {
+      return null;
+    }
+
+    final holder = PrimitiveValueHolder.fromMap(values);
+
+    final instance = schema.allocate();
+
+    schema.columns.forEach((col) {
+      col.assignAttribute(holder, col.name, instance);
+    });
+
+    return instance;
+  }
+
+  T? insert<T>(SyncDbSchema<T> schema, Map<String, dynamic> values) {
+    var id = 0;
+    final idCol = schema.idColumn;
+    if (idCol != null) {
+      values.remove(idCol);
+      id = nextLocalId(schema.schemaName);
+      values[idCol.name] = id;
+    }
+    _dbConn.insert(schema.schemaName, values);
+    final rowId = _dbConn.lastInsertRowId;
+    if (_dbConn.affectedRowsCount == 1 && rowId > 0) {
+      return loadFirstBy(schema, {"rowid": rowId});
+    }
+    return null;
+  }
+
+  T? update<T>(SyncDbSchema<T> schema, int id, Map<String, dynamic> values) {
+    final idCol = schema.idColumn?.name;
+    if (idCol == null) {
+      return null;
+    }
+    _dbConn.update(schema.tableName, values, {idCol: id});
+    if (_dbConn.affectedRowsCount == 1) {
+      return loadById(schema, id);
+    }
+    return null;
+  }
+
+  bool delete<T>(SyncDbSchema<T> schema, int id) {
+    final idCol = schema.idColumn?.name;
+    if (idCol == null) {
+      return false;
+    }
+
+    _dbConn.execute("delete from ${schema.tableName} where $idCol=?", [id]);
+
+    return _dbConn.affectedRowsCount == 1;
+  }
+
   List<SchemaVersion> getUnsynced(List<SchemaVersion> remoteVersions) {
     List<SchemaVersion> needSync = [];
 
     for (var local in this.localSchemaInfos.values) {
-      SchemaVersion? remote;
-      try {
-        remote = remoteVersions.firstWhere((element) => element.schemaName == local.schemaName, orElse: null);
-      } catch (e) {}
+      var remote = remoteVersions.firstWhereOrNull((element) => element.schemaName == local.schemaName);
 
       if (remote != null) {
         if (remote.revNum > local.revNum) {

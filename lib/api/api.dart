@@ -6,13 +6,13 @@ import 'package:http/http.dart' as http;
 import 'package:uri/uri.dart';
 import 'package:vgbnd/sync/schema.dart';
 
-class ApiResponse<T> {
-  static ApiResponse<T> success<T>(T body) {
-    return ApiResponse(body, 200, null);
+class Result<T> {
+  static Result<T> success<T>(T body) {
+    return Result(body, 200, null);
   }
 
-  static ApiResponse<T> failure<T>(String message, [int statusCode = -1]) {
-    return ApiResponse(null, statusCode, message);
+  static Result<T> failure<T>(String message, [int statusCode = -1]) {
+    return Result(null, statusCode, message);
   }
 
   final T? body;
@@ -23,33 +23,33 @@ class ApiResponse<T> {
     return this.statusCode == 200;
   }
 
-  ApiResponse(this.body, this.statusCode, this.errorMessage);
+  Result(this.body, this.statusCode, this.errorMessage);
 
   map<Q>(Future<Q> Function(T body) mapFn) async {
     Q? body;
     if (this.isSuccess && this.body != null) {
       body = await mapFn(this.body!);
     }
-    return ApiResponse(body, statusCode, errorMessage);
+    return Result(body, statusCode, errorMessage);
   }
 }
 
 class Api {
-  Future<ApiResponse<http.ByteStream>> _execRequest(ApiRequestBuilder reqBuilder) async {
+  Future<Result<http.ByteStream>> _execRequest(ApiRequestBuilder reqBuilder) async {
     try {
       final req = await reqBuilder.request();
       print("API REQUEST [${req.method}]${req.url}");
       final resp = await req.send();
       if (resp.statusCode == 200) {
-        return ApiResponse.success(resp.stream);
+        return Result.success(resp.stream);
       }
-      return ApiResponse.failure("bad request", resp.statusCode);
+      return Result.failure("bad request", resp.statusCode);
     } catch (e) {
-      return ApiResponse.failure("unexpected api error");
+      return Result.failure("unexpected api error");
     }
   }
 
-  Future<ApiResponse<List<SchemaVersion>>> schemaVersions(UserAccount account) async {
+  Future<Result<List<SchemaVersion>>> schemaVersions(UserAccount account) async {
     final req = ApiRequestBuilder(HttpMethod.GET, "collections/revisions").forAccount(account);
     final resp = await _execRequest(req);
     final x = await resp.map<List<SchemaVersion>>((body) async {
@@ -72,10 +72,10 @@ class Api {
     return x;
   }
 
-  Future<ApiResponse<List<RemoteSchemaChangeset>>> changes(UserAccount account, List<SchemaVersion> versions,
+  Future<Result<List<RemoteSchemaChangeset>>> changes(UserAccount account, List<SchemaVersion> versions,
       {bool? includeDeleted}) async {
     if (versions.isEmpty) {
-      return ApiResponse.success(List.empty());
+      return Result.success(List.empty());
     }
 
     final params = {
@@ -91,7 +91,7 @@ class Api {
     final req = ApiRequestBuilder(HttpMethod.GET, "collections/import").forAccount(account).addQueryParams(params);
     final resp = await _execRequest(req);
 
-    final ApiResponse<List<RemoteSchemaChangeset>> x = await resp.map((body) async {
+    final Result<List<RemoteSchemaChangeset>> x = await resp.map((body) async {
       List<RemoteSchemaChangeset> res = [];
       final rawJson = await body.bytesToString();
       final Map<String, dynamic> respBody = json.decode(rawJson);
@@ -101,6 +101,18 @@ class Api {
       }
 
       return res;
+    });
+
+    return x;
+  }
+
+  Future<Result<String>> updateSchemaObject(
+      UserAccount account, String schemaName, int id, Map<String, dynamic> values) async {
+    final req = ApiRequestBuilder(HttpMethod.PUT, "collections/$schemaName/$id").forAccount(account).body(values);
+    final resp = await _execRequest(req);
+    final x = await resp.map<String>((body) async {
+      final rawJson = await body.bytesToString();
+      return rawJson;
     });
 
     return x;
@@ -115,11 +127,11 @@ class ApiRequestBuilder {
   String _path;
   Map<String, String>? _qsParams;
   UserAccount? _userAccount;
-  Map<String, String> _headers = {"Accept": "application/json"};
+  Map<String, String> _headers = {"Accept": "application/json", "Content-Type": "application/json"};
 
-  static final _baseApiUri = 'https://apim.vagabondvending.com/api/public';
+  //static final _baseApiUri = 'https://apim.vagabondvending.com/api/public';
 
-  //static final _baseApiUri = 'http://192.168.100.152:3000/api/public';
+  static final _baseApiUri = 'http://192.168.100.152:3000/api/public';
 
   static Uri getUri(String path, [Map<String, String>? qsParams]) {
     if (path.startsWith("/")) {

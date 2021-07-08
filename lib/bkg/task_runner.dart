@@ -13,8 +13,12 @@ abstract class TaskRunner {
 
     recvPort.listen((rawMessage) async {
       final msg = rawMessage as TaskMessage;
-      final res = await processMessage(msg);
-      msg.resolve(res);
+      if (msg.onComplete != null) {
+        final res = await processMessage(msg);
+        msg.resolve(res);
+      }else{
+        await processMessage(msg);
+      }
     });
     scheduleMicrotask(() {
       onComplete.send(recvPort.sendPort);
@@ -55,7 +59,8 @@ abstract class TaskRunner {
       dispose();
     });
 
-    _isol = await Isolate.spawn(initIsolate, setupMgs, errorsAreFatal: false, onError: errPort.sendPort, onExit: exitPort.sendPort);
+    _isol = await Isolate.spawn(initIsolate, setupMgs,
+        errorsAreFatal: false, onError: errPort.sendPort, onExit: exitPort.sendPort);
     if (_isDisposed) {
       _isol?.kill(priority: Isolate.immediate);
       _isol = null;
@@ -74,6 +79,21 @@ abstract class TaskRunner {
     }
   }
 
+  // send a message to the isolate without requiring for a reply
+  emit(String type, {Object? args}) {
+    _enqueue(TaskMessage(type, args: args));
+  }
+
+  // send a message to the isolate and wait until we get a reply back
+  Future<dynamic> exec(String type, {Object? args}) {
+    if (_isDisposed) {
+      return Future.error(Exception("task runner is disposed"));
+    }
+    final c = ReceivePort();
+    _enqueue(TaskMessage(type, args: args, onComplete: c.sendPort));
+    return c.first;
+  }
+
   bool dispose() {
     if (!_isDisposed) {
       _isDisposed = true;
@@ -83,26 +103,17 @@ abstract class TaskRunner {
     }
     return false;
   }
-
-  Future<dynamic> exec(String type, {Object? args}) {
-    if (_isDisposed) {
-      return Future.error(Exception("task runner is disposed"));
-    }
-    final c = ReceivePort();
-    _enqueue(TaskMessage(type, c.sendPort, args: args));
-    return c.first;
-  }
 }
 
 class TaskMessage {
   final String type;
-  final SendPort onComplete;
+  final SendPort? onComplete;
   final Object? args;
 
-  const TaskMessage(this.type, this.onComplete, {this.args});
+  const TaskMessage(this.type, {this.args, this.onComplete});
 
   resolve(Object args) {
-    this.onComplete.send(args);
+    this.onComplete?.send(args);
   }
 }
 
