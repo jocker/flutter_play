@@ -1,8 +1,8 @@
 import 'package:vgbnd/sync/schema.dart';
 
-import 'base_model.dart';
+import '../sync/sync_object.dart';
 
-class Location extends BaseModel<Location> {
+class Location extends SyncObject<Location> {
   static const SchemaName SCHEMA_NAME = 'locations';
 
   static final schema = SyncDbSchema<Location>(SCHEMA_NAME, allocate: () => Location(), columns: [

@@ -4,6 +4,8 @@ import 'dart:collection';
 import 'package:vgbnd/api/api.dart';
 import 'package:vgbnd/data/db.dart';
 import 'package:vgbnd/ext.dart';
+import 'package:vgbnd/sync/sync_object.dart';
+import 'package:vgbnd/sync/constants.dart';
 import 'package:vgbnd/sync/schema.dart';
 import 'package:vgbnd/sync/sync.dart';
 import 'package:vgbnd/sync/value_holder.dart';
@@ -28,6 +30,19 @@ class LocalRepository {
 
   DbConn get dbConn {
     return _dbConn;
+  }
+
+  SyncObjectPersistenceState getPersistenceState(SyncObject model) {
+    final idCol = model.getSchema().idColumn;
+    if (idCol != null) {
+      final int id = idCol.readAttribute(model);
+      if (isLocalId(id)) {
+        return SyncObjectPersistenceState.LocalOnly;
+      } else if (id > 0) {
+        return SyncObjectPersistenceState.RemoteAndLocal;
+      }
+    }
+    return SyncObjectPersistenceState.Unknown;
   }
 
   bool isLocalId(int id) {
@@ -136,6 +151,17 @@ class LocalRepository {
     _setLocalIdCounter(schemaName, nextId);
     return nextId;
   }
+
+  int schemaVersion(String schemaName) {
+    final schemaInfo = this.localSchemaInfos[schemaName];
+    if (schemaInfo == null) {
+      return 0;
+    }
+
+    return schemaInfo.revNum;
+  }
+
+
 
   Map<String, LocalSchemaInfo>? _localSchemaInfos;
 

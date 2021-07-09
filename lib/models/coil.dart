@@ -1,9 +1,9 @@
 import 'package:vgbnd/models/location.dart';
 import 'package:vgbnd/sync/schema.dart';
 
-import 'base_model.dart';
+import '../sync/sync_object.dart';
 
-class Coil extends BaseModel<Coil> {
+class Coil extends SyncObject<Coil> {
   static const SchemaName SCHEMA_NAME = 'columns';
 
   static final schema = SyncDbSchema<Coil>(SCHEMA_NAME, allocate: () => Coil(), columns: [

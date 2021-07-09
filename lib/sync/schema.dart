@@ -1,7 +1,7 @@
 import 'package:vgbnd/api/api.dart';
 import 'package:vgbnd/data/db.dart';
 import 'package:vgbnd/ext.dart';
-import 'package:vgbnd/models/base_model.dart';
+import 'package:vgbnd/sync/sync_object.dart';
 import 'package:vgbnd/models/coil.dart';
 import 'package:vgbnd/models/location.dart';
 import 'package:vgbnd/models/machine_column_sales.dart';
@@ -20,7 +20,7 @@ class SchemaVersion {
 }
 
 class SyncDbColumn<T> {
-  static SyncDbColumn<T> readonly<T extends BaseModel>(String colName, {SchemaName? referenceOf}) {
+  static SyncDbColumn<T> readonly<T extends SyncObject>(String colName, {SchemaName? referenceOf}) {
     return SyncDbColumn<T>(
       "id",
       readAttribute: (dest) => throw UnsupportedError("unsupported"),
@@ -30,7 +30,7 @@ class SyncDbColumn<T> {
     );
   }
 
-  static SyncDbColumn<T> id<T extends BaseModel>() {
+  static SyncDbColumn<T> id<T extends SyncObject>() {
     return SyncDbColumn<T>(
       "id",
       readAttribute: (dest) => dest.id,

@@ -28,6 +28,8 @@ class RemoteSubmitResult {
 }
 
 abstract class LocalPersistence<T> {
+
+
   Future<RecordChangelog?> createChangelog(LocalRepository localRepo, T instance);
 
   // writes the changelog in the local repository

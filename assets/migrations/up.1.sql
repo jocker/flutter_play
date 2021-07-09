@@ -188,13 +188,21 @@ create table if not exists  _schema_changelog(
     data text,
     error_messages text,
     status tinyint not null default 0,
-    created_at timestamp not null default current_timestamp,
+    rev_num timestamp not null default current_timestamp,
     primary key(uuid)
 );
 
-create table if not exists  _schema_row_id(
+create table if not exists  _sync_object_id(
     schema_name varchar(255) not null,
     local_id integer not null,
     remote_id integer not null default 0,
     primary key(schema_name, local_id)
+);
+
+create table if not exists  _sync_object_snapshots(
+    schema_name varchar(255) not null,
+    record_id integer not null,
+    rev_num integer not null,
+    data text not null,
+    primary key(schema_name, record_id, rev_num)
 );

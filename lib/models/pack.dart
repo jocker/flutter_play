@@ -1,8 +1,8 @@
-import 'package:vgbnd/models/base_model.dart';
+import 'package:vgbnd/sync/sync_object.dart';
 import 'package:vgbnd/sync/constants.dart';
 import 'package:vgbnd/sync/schema.dart';
 
-class Pack extends BaseModel<Pack> {
+class Pack extends SyncObject<Pack> {
   static const SchemaName SCHEMA_NAME = 'packs';
 
   int? locationId;

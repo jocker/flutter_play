@@ -1,7 +1,7 @@
 import 'package:vgbnd/sync/schema.dart';
 import 'package:vgbnd/sync/value_holder.dart';
 
-abstract class BaseModel<T> {
+abstract class SyncObject<T> {
   int? id;
 
   bool isNewRecord() {
@@ -18,7 +18,14 @@ abstract class BaseModel<T> {
     return getSchema().dumpObject(this as T);
   }
 
-  PrimitiveValueHolder diffFrom(BaseModel<T> other) {
+  PrimitiveValueHolder diffFrom(SyncObject<T> other) {
     return dumpValues().diffFrom(other.dumpValues());
   }
+}
+
+class SyncObjectIdentifier {
+  final String schemaName;
+  final int id;
+
+  SyncObjectIdentifier(this.schemaName, this.id);
 }

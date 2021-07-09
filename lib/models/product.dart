@@ -1,8 +1,8 @@
 import 'package:vgbnd/sync/schema.dart';
 
-import 'base_model.dart';
+import '../sync/sync_object.dart';
 
-class Product extends BaseModel<Product> {
+class Product extends SyncObject<Product> {
   static const SchemaName SCHEMA_NAME = 'products';
 
   static final schema = SyncDbSchema<Product>(SCHEMA_NAME, allocate: () => Product(), columns: [

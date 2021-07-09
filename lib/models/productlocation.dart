@@ -17,13 +17,13 @@ public class LocationProduct extends BaseRemoteModel {
 
  */
 
-import 'package:vgbnd/models/base_model.dart';
+import 'package:vgbnd/sync/sync_object.dart';
 import 'package:vgbnd/models/product.dart';
 import 'package:vgbnd/sync/schema.dart';
 
 import 'location.dart';
 
-class ProductLocation extends BaseModel<ProductLocation> {
+class ProductLocation extends SyncObject<ProductLocation> {
   static const SchemaName SCHEMA_NAME = 'productlocation';
 
   int? productId;

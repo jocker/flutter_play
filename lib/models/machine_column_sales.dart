@@ -1,9 +1,9 @@
-import 'package:vgbnd/models/base_model.dart';
+import 'package:vgbnd/sync/sync_object.dart';
 import 'package:vgbnd/models/location.dart';
 import 'package:vgbnd/sync/schema.dart';
 
 
-class MachineColumnSale extends BaseModel<MachineColumnSale> {
+class MachineColumnSale extends SyncObject<MachineColumnSale> {
   static const SchemaName SCHEMA_NAME = 'machine_column_sales';
 
   String? machineColumn;
