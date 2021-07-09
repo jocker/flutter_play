@@ -17,9 +17,9 @@ public class LocationProduct extends BaseRemoteModel {
 
  */
 
-import 'package:vgbnd/sync/sync_object.dart';
 import 'package:vgbnd/models/product.dart';
 import 'package:vgbnd/sync/schema.dart';
+import 'package:vgbnd/sync/sync_object.dart';
 
 import 'location.dart';
 
@@ -29,16 +29,16 @@ class ProductLocation extends SyncObject<ProductLocation> {
   int? productId;
   int? locationId;
 
-  static final schema = SyncDbSchema<ProductLocation>(SCHEMA_NAME,
+  static final schema = SyncSchema<ProductLocation>(SCHEMA_NAME,
       allocate: () => ProductLocation(),
       columns: [
-        SyncDbColumn.readonly("product_id", referenceOf: Product.SCHEMA_NAME),
-        SyncDbColumn.readonly("location_id", referenceOf: Location.SCHEMA_NAME),
-        SyncDbColumn.readonly("unitcount"),
+        SyncColumn.readonly("product_id", referenceOf: Product.SCHEMA_NAME),
+        SyncColumn.readonly("location_id", referenceOf: Location.SCHEMA_NAME),
+        SyncColumn.readonly("unitcount"),
       ]);
 
   @override
-  SyncDbSchema<ProductLocation> getSchema() {
+  SyncSchema<ProductLocation> getSchema() {
     return schema;
   }
 }

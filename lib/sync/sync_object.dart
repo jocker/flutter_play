@@ -2,6 +2,16 @@ import 'package:vgbnd/sync/schema.dart';
 import 'package:vgbnd/sync/value_holder.dart';
 
 abstract class SyncObject<T> {
+  static const _SCHEMA_ATTR_NAME = "__schema";
+
+  static SyncObject<T>? fromJson<T extends SyncObject<T>>(Map<String, dynamic> values) {
+    final schema = SyncSchema.byName(values[_SCHEMA_ATTR_NAME] ?? "");
+    if (schema == null) {
+      return null;
+    }
+    return schema.instantiate(values);
+  }
+
   int? id;
 
   bool isNewRecord() {
@@ -12,7 +22,7 @@ abstract class SyncObject<T> {
     return id ?? 0;
   }
 
-  SyncDbSchema<T> getSchema();
+  SyncSchema<T> getSchema();
 
   PrimitiveValueHolder dumpValues() {
     return getSchema().dumpObject(this as T);
@@ -21,11 +31,10 @@ abstract class SyncObject<T> {
   PrimitiveValueHolder diffFrom(SyncObject<T> other) {
     return dumpValues().diffFrom(other.dumpValues());
   }
-}
 
-class SyncObjectIdentifier {
-  final String schemaName;
-  final int id;
-
-  SyncObjectIdentifier(this.schemaName, this.id);
+  Map<String, dynamic> toJson() {
+    final values = dumpValues().toMap();
+    values[_SCHEMA_ATTR_NAME] = getSchema().schemaName;
+    return values;
+  }
 }

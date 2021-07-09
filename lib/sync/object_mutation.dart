@@ -1,27 +1,41 @@
 import 'dart:convert';
 
-import 'package:vgbnd/data/cursor.dart';
-import 'package:vgbnd/sync/persistence/sync_object_snapshor.dart';
-import 'package:vgbnd/sync/sync_object.dart';
 import 'package:vgbnd/sync/constants.dart';
 import 'package:vgbnd/sync/schema.dart';
+import 'package:vgbnd/sync/sync_object.dart';
 import 'package:vgbnd/sync/value_holder.dart';
 
 import '../ext.dart';
+import 'mutation/sync_object_snapshot.dart';
 
-class RecordChangelog {
+class ObjectMutationData {
+  static const TABLE_NAME = "_schema_changelog";
+
   static const STATUS_NONE = 0, STATUS_PENDING = 1, STATUS_SUCCESS = 2, STATUS_FAILURE = 3;
 
-  static RecordChangelog fromModel(SyncObject instance, SyncObjectOp op) {
-    return RecordChangelog(
+  static ObjectMutationData fromModel(SyncObject instance, SyncObjectMutationType op) {
+    return ObjectMutationData(
         schemaName: instance.getSchema().schemaName,
-        recordId: instance.id ?? 0,
+        objectId: instance.id ?? 0,
         operation: op,
         status: STATUS_NONE,
         id: uuidGenV4());
   }
 
-  static RecordChangelog? fromDbValues(Map<String, dynamic> dbValues) {
+  static ObjectMutationData? fromJson(Map<String, dynamic> json) {
+
+    return ObjectMutationData(
+        id: json["id"],
+        schemaName: json["schema_name"],
+        objectId: json["object_id"],
+        operation: SyncObjectMutationType.values[json["operation"]],
+        status: json["status"],
+        data: json["data"],
+        errorMessages: json["error_messages"])
+      ..snapshot = SyncObjectSnapshot.fromJson(json["snapshot"]);
+  }
+
+  static ObjectMutationData? fromDbValues(Map<String, dynamic> dbValues) {
     final c = PrimitiveValueHolder.fromMap(dbValues);
     final rawUUid = c.getValue<String>("uuid");
     if (rawUUid == null) {
@@ -32,25 +46,25 @@ class RecordChangelog {
       return null;
     }
 
-    final rawRecordId = c.getValue<int>("record_id");
+    final rawObjectId = c.getValue<int>("object_id");
     final rawOp = c.getValue<int>("operation");
     final rawStatus = c.getValue<int>("status");
 
-    if (rawRecordId == null || rawOp == null || rawStatus == null) {
+    if (rawObjectId == null || rawOp == null || rawStatus == null) {
       return null;
     }
 
-    SyncObjectOp? op;
-    if (rawOp >= 0 && rawOp < SyncObjectOp.values.length) {
-      op = SyncObjectOp.values[rawOp];
+    SyncObjectMutationType? op;
+    if (rawOp >= 0 && rawOp < SyncObjectMutationType.values.length) {
+      op = SyncObjectMutationType.values[rawOp];
     }
 
     if (op == null) {
       return null;
     }
 
-    final rec = RecordChangelog(
-        id: rawUUid, schemaName: rawSchemaName, recordId: rawRecordId, operation: op, status: rawStatus);
+    final rec = ObjectMutationData(
+        id: rawUUid, schemaName: rawSchemaName, objectId: rawObjectId, operation: op, status: rawStatus);
 
     final rawData = c.getValue<String>("data");
     if (rawData != null) {
@@ -71,10 +85,10 @@ class RecordChangelog {
     return rec;
   }
 
-  RecordChangelog(
+  ObjectMutationData(
       {required this.id,
       required this.schemaName,
-      required this.recordId,
+      required this.objectId,
       required this.operation,
       required this.status,
       this.data,
@@ -83,21 +97,21 @@ class RecordChangelog {
 
   String id;
   SchemaName schemaName;
-  int recordId;
-  SyncObjectOp operation;
+  int objectId;
+  SyncObjectMutationType operation;
   int status;
   DateTime? createdAt;
   Map<String, dynamic>? data;
 
   Map<String, dynamic>? errorMessages;
 
-  SyncObjectSnapshot? snapshot;
+  SyncObjectSnapshot? snapshot; // what was the data before this changelog was created
 
   Map<String, dynamic> toDbValues() {
     final values = {
       "id": id,
       "schema_name": schemaName,
-      "record_id": recordId,
+      "object_id": objectId,
       "operation": operation.index,
       "status": status,
       "data": jsonEncode(data),
@@ -109,5 +123,18 @@ class RecordChangelog {
     }
 
     return values;
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      "id": id,
+      "schema_name": schemaName,
+      "object_id": objectId,
+      "operation": operation.index,
+      "status": status,
+      "data": data,
+      "error_messages": errorMessages,
+      "snapshot": this.snapshot?.toJson(),
+    };
   }
 }

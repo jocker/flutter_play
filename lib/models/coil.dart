@@ -6,30 +6,31 @@ import '../sync/sync_object.dart';
 class Coil extends SyncObject<Coil> {
   static const SchemaName SCHEMA_NAME = 'columns';
 
-  static final schema = SyncDbSchema<Coil>(SCHEMA_NAME, allocate: () => Coil(), columns: [
-    SyncDbColumn.id(),
-    SyncDbColumn(
+  static final schema = SyncSchema<Coil>(SCHEMA_NAME,
+      allocate: () => Coil(), columns: [
+    SyncColumn.id(),
+    SyncColumn(
       "column_name",
       readAttribute: (dest) => dest.columnName,
       assignAttribute: (value, key, dest) {
         dest.columnName = value.getValue(key) ?? dest.columnName;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "planogram_id",
       readAttribute: (dest) => dest.planogramId,
       assignAttribute: (value, key, dest) {
         dest.planogramId = value.getValue(key) ?? dest.planogramId;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "product_id",
       readAttribute: (dest) => dest.productId,
       assignAttribute: (value, key, dest) {
         dest.productId = value.getValue(key) ?? dest.productId;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "location_id",
       referenceOf: Location.SCHEMA_NAME,
       readAttribute: (dest) => dest.locationId,
@@ -37,70 +38,70 @@ class Coil extends SyncObject<Coil> {
         dest.locationId = value.getValue(key) ?? dest.locationId;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "display_name",
       readAttribute: (dest) => dest.displayName,
       assignAttribute: (value, key, dest) {
         dest.displayName = value.getValue(key) ?? dest.displayName;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "last_fill",
       readAttribute: (dest) => dest.lastFill,
       assignAttribute: (value, key, dest) {
         dest.lastFill = value.getValue(key) ?? dest.lastFill;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "capacity",
       readAttribute: (dest) => dest.capacity,
       assignAttribute: (value, key, dest) {
         dest.capacity = value.getValue(key) ?? dest.capacity;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "max_capacity",
       readAttribute: (dest) => dest.maxCapacity,
       assignAttribute: (value, key, dest) {
         dest.maxCapacity = value.getValue(key) ?? dest.maxCapacity;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "last_visit",
       readAttribute: (dest) => dest.lastVisit,
       assignAttribute: (value, key, dest) {
         dest.lastVisit = value.getValue(key) ?? dest.lastVisit;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "tray_id",
       readAttribute: (dest) => dest.trayId,
       assignAttribute: (value, key, dest) {
         dest.trayId = value.getValue(key) ?? dest.trayId;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "coil_notes",
       readAttribute: (dest) => dest.coilNotes,
       assignAttribute: (value, key, dest) {
         dest.coilNotes = value.getValue(key) ?? dest.coilNotes;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "set_price",
       readAttribute: (dest) => dest.setPrice,
       assignAttribute: (value, key, dest) {
         dest.setPrice = value.getValue(key) ?? dest.setPrice;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "sts_coils",
       readAttribute: (dest) => dest.stsCoils,
       assignAttribute: (value, key, dest) {
         dest.stsCoils = value.getValue(key) ?? dest.stsCoils;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "active",
       readAttribute: (dest) => dest.active,
       assignAttribute: (value, key, dest) {
@@ -126,7 +127,7 @@ class Coil extends SyncObject<Coil> {
 
 
   @override
-  SyncDbSchema<Coil> getSchema() {
+  SyncSchema<Coil> getSchema() {
     return schema;
   }
 }

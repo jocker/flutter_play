@@ -1,6 +1,6 @@
-import 'package:vgbnd/sync/sync_object.dart';
 import 'package:vgbnd/sync/constants.dart';
 import 'package:vgbnd/sync/schema.dart';
+import 'package:vgbnd/sync/sync_object.dart';
 
 class Pack extends SyncObject<Pack> {
   static const SchemaName SCHEMA_NAME = 'packs';
@@ -8,19 +8,19 @@ class Pack extends SyncObject<Pack> {
   int? locationId;
   int? restockId;
 
-  static final schema = SyncDbSchema<Pack>(SCHEMA_NAME,
+  static final schema = SyncSchema<Pack>(SCHEMA_NAME,
       syncOps: [SyncSchemaOp.RemoteWrite],
       allocate: () => Pack(),
       columns: [
-        SyncDbColumn.id(),
-        SyncDbColumn(
+        SyncColumn.id(),
+        SyncColumn(
           "location_id",
           readAttribute: (dest) => dest.locationId,
           assignAttribute: (value, key, dest) {
             dest.locationId = value.getValue(key) ?? dest.locationId;
           },
         ),
-        SyncDbColumn(
+        SyncColumn(
           "restock_id",
           readAttribute: (dest) => dest.restockId,
           assignAttribute: (value, key, dest) {
@@ -30,7 +30,7 @@ class Pack extends SyncObject<Pack> {
       ]);
 
   @override
-  SyncDbSchema<Pack> getSchema() {
+  SyncSchema<Pack> getSchema() {
     return schema;
   }
 }

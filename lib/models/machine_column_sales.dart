@@ -1,6 +1,6 @@
-import 'package:vgbnd/sync/sync_object.dart';
 import 'package:vgbnd/models/location.dart';
 import 'package:vgbnd/sync/schema.dart';
+import 'package:vgbnd/sync/sync_object.dart';
 
 
 class MachineColumnSale extends SyncObject<MachineColumnSale> {
@@ -15,18 +15,18 @@ class MachineColumnSale extends SyncObject<MachineColumnSale> {
   double? cashAmountSince;
   DateTime? lastSaleDate;
 
-  static final schema = SyncDbSchema<MachineColumnSale>(SCHEMA_NAME, allocate: () => MachineColumnSale(), columns: [
-    SyncDbColumn.readonly("machinecolumn"),
-    SyncDbColumn.readonly("location_id", referenceOf: Location.SCHEMA_NAME),
-    SyncDbColumn.readonly("unitcount"),
-    SyncDbColumn.readonly("last_sale_cash_amount"),
-    SyncDbColumn.readonly("last_sale_unit_count"),
-    SyncDbColumn.readonly("units_sold_since"),
-    SyncDbColumn.readonly("last_sale_date"),
+  static final schema = SyncSchema<MachineColumnSale>(SCHEMA_NAME, allocate: () => MachineColumnSale(), columns: [
+    SyncColumn.readonly("machinecolumn"),
+    SyncColumn.readonly("location_id", referenceOf: Location.SCHEMA_NAME),
+    SyncColumn.readonly("unitcount"),
+    SyncColumn.readonly("last_sale_cash_amount"),
+    SyncColumn.readonly("last_sale_unit_count"),
+    SyncColumn.readonly("units_sold_since"),
+    SyncColumn.readonly("last_sale_date"),
   ]);
 
   @override
-  SyncDbSchema<MachineColumnSale> getSchema() {
+  SyncSchema<MachineColumnSale> getSchema() {
     return schema;
   }
 }

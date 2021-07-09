@@ -15,16 +15,21 @@ import 'package:vgbnd/models/machine_column_sales.dart';
 import 'package:vgbnd/models/pack.dart';
 import 'package:vgbnd/models/product.dart';
 import 'package:vgbnd/models/productlocation.dart';
-import 'package:vgbnd/sync/_remote_repository.dart';
+import 'package:vgbnd/sync/constants.dart';
+import 'package:vgbnd/sync/object_mutation.dart';
+import 'package:vgbnd/sync/repository/_remote_repository.dart';
 import 'package:vgbnd/sync/schema.dart';
+import 'package:vgbnd/sync/sync_object.dart';
 
-import '_local_repository.dart';
+import 'mutation/base.dart';
+import 'repository/_local_repository.dart';
 import 'net_connectivity_info.dart';
 
 const _MESSAGE_TYPE_PULL_CHANGES = "pull_changes",
     _MESSAGE_TYPE_INVALIDATE_CACHE = "invalidate_cache",
     _MESSAGE_TYPE_WATCH_SCHEMA_CHANGED = "watch_schema_changed",
-    _MESSAGE_TYPE_SET_CONN_INFO = "set_conn_info";
+    _MESSAGE_TYPE_SET_CONN_INFO = "set_conn_info",
+    _MESSAGE_TYPE_MUTATE_SYNC_OBJECT = "mutate_sync_object";
 
 class SyncEngineIsolate {
   late final LocalRepository _localRepository;
@@ -37,6 +42,45 @@ class SyncEngineIsolate {
   SyncEngineIsolate(this._db, this._account, this._connectivityInfo) {
     _localRepository = LocalRepository(_db);
     _remoteRepository = RemoteRepository(this._account, this._connectivityInfo);
+  }
+
+  MutationResult _processChangelog(List<RemoteSchemaChangelog> changelogs) {
+    final mutResult = MutationResult(SyncStorageType.Remote);
+
+    for (var changelog in changelogs) {
+      final schema = SyncSchema.byName(changelog.schemaName);
+      if (schema == null) {
+        continue;
+      }
+
+      int? maxRemoteID;
+
+      final idColName = schema.idColumn?.name;
+      if (idColName != null) {
+        maxRemoteID = _localRepository.dbConn
+            .selectValue<int?>("select coalesce(0, (select max($idColName}) from ${schema.tableName}))");
+      }
+
+      for (var entry in changelog.entries()) {
+        final syncObject = entry.toSyncObject();
+        if (syncObject == null) {
+          continue;
+        }
+
+        if (entry.isDeleted == true) {
+          mutResult.add(SyncObjectMutationType.Delete, syncObject);
+        }
+
+        if (maxRemoteID != null && maxRemoteID < syncObject.getId()) {
+          mutResult.add(SyncObjectMutationType.Create, syncObject);
+        } else {
+          mutResult.add(SyncObjectMutationType.Update, syncObject);
+        }
+      }
+    }
+
+    mutResult.setSuccessful(true);
+    return mutResult;
   }
 
   Future<bool> pullChanges() async {
@@ -53,7 +97,7 @@ class SyncEngineIsolate {
       unsynced.addAll(SyncEngine.SYNC_SCHEMAS.map((e) => SchemaVersion(e, 0)));
     }
 
-    unsynced = unsynced.where((element) => SyncDbSchema.byName(element.schemaName)?.remoteReadable ?? false).toList();
+    unsynced = unsynced.where((element) => SyncSchema.byName(element.schemaName)?.remoteReadable ?? false).toList();
 
     final unsyncedResp = await _remoteRepository.changes(unsynced, includeDeleted: includeDeleted);
     if (!unsyncedResp.isSuccess) {
@@ -94,6 +138,20 @@ class SyncEngineIsolate {
     return WatchSchemasReply(initial, cancel.sendPort);
   }
 
+  Future<MutationResult> handleMutationRequest(ObjectMutationData mutationData) async {
+    switch (mutationData.operation) {
+      case SyncObjectMutationType.Create:
+        _remoteRepository.create
+        break;
+      case SyncObjectMutationType.Update:
+        break;
+      case SyncObjectMutationType.Delete:
+        break;
+      default:
+        return MutationResult.failure();
+    }
+  }
+
   _getSchemaSignature(List<String> schemaNames) {
     int res = 0;
     for (var name in schemaNames) {
@@ -118,6 +176,13 @@ class SyncEngineIsolate {
       case _MESSAGE_TYPE_SET_CONN_INFO:
         _connectivityInfo.setValue(message.args as int);
         return;
+      case _MESSAGE_TYPE_MUTATE_SYNC_OBJECT:
+        final arg = message.args as Map<String, dynamic>;
+        final mutData = ObjectMutationData.fromJson(arg);
+        if (mutData == null) {
+          return MutationResult.failure();
+        }
+        return await handleMutationRequest(mutData);
       default:
         throw Exception("SyncEngineBackEnd doesn't know how to handle ${message.type}");
     }
@@ -222,6 +287,11 @@ class SyncEngine extends TaskRunner {
     });
 
     return controller.stream;
+  }
+
+  Future<MutationResult> mutateObject(SyncObject obj, SyncObjectMutationType op) async {
+    final mutData = ObjectMutationData.fromModel(obj, op).toJson();
+    return await this.exec(_MESSAGE_TYPE_MUTATE_SYNC_OBJECT, args: mutData);
   }
 
   Future<String> getLocalDatabasePath() async {

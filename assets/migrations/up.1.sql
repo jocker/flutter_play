@@ -1,4 +1,7 @@
 -- TABLE SCHEMA columns
+
+
+
 create table if not exists columns(
 	id integer not null,
 	_sync_flags integer not null  default 0,
@@ -183,13 +186,13 @@ create table if not exists  _schema_info(
 create table if not exists  _schema_changelog(
     id varchar(255) not null,
     schema_name varchar(255) not null,
-    record_id integer not null,
+    object_id integer not null,
     operation tinyint not null,
     data text,
     error_messages text,
     status tinyint not null default 0,
     rev_num timestamp not null default current_timestamp,
-    primary key(uuid)
+    primary key(id)
 );
 
 create table if not exists  _sync_object_id(
@@ -204,5 +207,5 @@ create table if not exists  _sync_object_snapshots(
     record_id integer not null,
     rev_num integer not null,
     data text not null,
-    primary key(schema_name, record_id, rev_num)
+    primary key(schema_name, record_id)
 );

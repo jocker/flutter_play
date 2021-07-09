@@ -5,6 +5,7 @@ import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:uri/uri.dart';
 import 'package:vgbnd/sync/schema.dart';
+import 'package:vgbnd/sync/sync_object.dart';
 
 class Result<T> {
   static Result<T> success<T>(T body) {
@@ -35,6 +36,10 @@ class Result<T> {
 }
 
 class Api {
+  UserAccount _account;
+
+  Api(this._account);
+
   Future<Result<http.ByteStream>> _execRequest(ApiRequestBuilder reqBuilder) async {
     try {
       final req = await reqBuilder.request();
@@ -49,8 +54,8 @@ class Api {
     }
   }
 
-  Future<Result<List<SchemaVersion>>> schemaVersions(UserAccount account) async {
-    final req = ApiRequestBuilder(HttpMethod.GET, "collections/revisions").forAccount(account);
+  Future<Result<List<SchemaVersion>>> schemaVersions() async {
+    final req = ApiRequestBuilder(HttpMethod.GET, "collections/revisions").forAccount(_account);
     final resp = await _execRequest(req);
     final x = await resp.map<List<SchemaVersion>>((body) async {
       final List<SchemaVersion> revs = [];
@@ -58,8 +63,8 @@ class Api {
       final Map x = json.decode(rawJson);
 
       x.forEach((schemaName, value) {
-        if (SyncDbSchema.isRegisteredSchema(schemaName)) {
-          final revNum = SyncDbSchema.parseRevNum(value);
+        if (SyncSchema.isRegisteredSchema(schemaName)) {
+          final revNum = SyncSchema.parseRevNum(value);
           if (revNum != null) {
             revs.add(SchemaVersion(schemaName, revNum));
           }
@@ -72,43 +77,23 @@ class Api {
     return x;
   }
 
-  Future<Result<List<RemoteSchemaChangeset>>> changes(UserAccount account, List<SchemaVersion> versions,
-      {bool? includeDeleted}) async {
+  Future<Result<List<RemoteSchemaChangelog>>> changes(List<SchemaVersion> versions, {bool? includeDeleted}) async {
     if (versions.isEmpty) {
       return Result.success(List.empty());
     }
 
-    final params = {
-      "raw": "true",
-      "mode": "rows",
-      "include_deleted": (includeDeleted == true) ? "true" : "false",
-    };
+    final Map<String, String> queryParams = {};
 
     for (var version in versions) {
-      params["since[${version.schemaName}]"] = version.revNum.toString();
+      queryParams["since[${version.schemaName}]"] = version.revNum.toString();
     }
 
-    final req = ApiRequestBuilder(HttpMethod.GET, "collections/import").forAccount(account).addQueryParams(params);
-    final resp = await _execRequest(req);
+    return _makeRequestForChangeset(HttpMethod.GET, "collections/import", queryParams: queryParams, includeDeleted: includeDeleted);
 
-    final Result<List<RemoteSchemaChangeset>> x = await resp.map((body) async {
-      List<RemoteSchemaChangeset> res = [];
-      final rawJson = await body.bytesToString();
-      final Map<String, dynamic> respBody = json.decode(rawJson);
-
-      for (var key in respBody.keys) {
-        res.add(RemoteSchemaChangeset.fromResponseJson(key, respBody[key]));
-      }
-
-      return res;
-    });
-
-    return x;
   }
 
-  Future<Result<String>> updateSchemaObject(
-      UserAccount account, String schemaName, int id, Map<String, dynamic> values) async {
-    final req = ApiRequestBuilder(HttpMethod.PUT, "collections/$schemaName/$id").forAccount(account).body(values);
+  Future<Result<String>> updateSchemaObject(String schemaName, int id, Map<String, dynamic> values) async {
+    final req = ApiRequestBuilder(HttpMethod.PUT, "collections/$schemaName/$id").body(values);
     final resp = await _execRequest(req);
     final x = await resp.map<String>((body) async {
       final rawJson = await body.bytesToString();
@@ -116,6 +101,81 @@ class Api {
     });
 
     return x;
+  }
+
+  Future<Result<List<RemoteSchemaChangelog>>> createSchemaObject(String schemaName, Map<String, dynamic> values) async {
+    return await _makeRequestForChangeset(HttpMethod.POST, "collections/$schemaName", payload: {"data": values});
+  }
+
+  Future<Result<List<RemoteSchemaChangelog>>> deleteSchemaObject(String schemaName, int objectId) async {
+    return await _makeRequestForChangeset(HttpMethod.DELETE, "collections/$schemaName/$objectId");
+  }
+
+  Future<Result<List<RemoteSchemaChangelog>>> _makeRequestForChangeset(HttpMethod httpMethod, String urlPath,
+      {Object? payload, bool? includeDeleted, Map<String, String>? queryParams}) async {
+    var reqQp = {
+      "mode": "rows",
+      "raw": "true",
+      "include_deleted": "true",
+    };
+
+    if (includeDeleted != null) {
+      reqQp["include_deleted"] = includeDeleted ? "true" : "false";
+    }
+
+    if (queryParams != null) {
+      for (var k in queryParams.keys) {
+        reqQp[k] = queryParams[k]!;
+      }
+    }
+
+    final req = ApiRequestBuilder(httpMethod, urlPath).addQueryParams(reqQp).forAccount(_account).body(payload);
+    final resp = await _execRequest(req);
+
+    final Result<List<RemoteSchemaChangelog>> changesetResp = await resp.map((body) async {
+      List<RemoteSchemaChangelog> res = [];
+      final rawJson = await body.bytesToString();
+      final Map<String, dynamic> respBody = json.decode(rawJson);
+
+      for (var key in respBody.keys) {
+        res.add(RemoteSchemaChangelog.fromResponseJson(key, respBody[key]));
+      }
+
+      return res;
+    });
+
+    return changesetResp;
+  }
+
+  _parseCrudResponse(String rawJson) {
+    final res = HashMap<String, List<SyncObject>>();
+    Map<String, dynamic> resp = jsonDecode(rawJson);
+
+    for (String schemaName in resp.keys) {
+      final schema = SyncSchema.byName(schemaName);
+      if (schema == null) {
+        continue;
+      }
+      final rawValue = resp[schemaName];
+      if (rawValue is List) {
+        for (var rawItem in rawValue) {
+          Map<String, dynamic>? valuesMap;
+          try {
+            valuesMap = rawItem;
+          } catch (e) {}
+          if (valuesMap == null) {
+            continue;
+          }
+          final obj = schema.instantiate(valuesMap);
+          if (!res.containsKey(schemaName)) {
+            res[schemaName] = [obj];
+          } else {
+            res[schemaName]!.add(obj);
+          }
+        }
+      }
+    }
+    return res;
   }
 }
 
@@ -172,11 +232,13 @@ class ApiRequestBuilder {
     return this;
   }
 
-  ApiRequestBuilder addQueryParams(Map<String, String> params) {
-    if (_qsParams == null) {
-      _qsParams = HashMap();
+  ApiRequestBuilder addQueryParams(Map<String, String>? params) {
+    if (params != null) {
+      if (_qsParams == null) {
+        _qsParams = HashMap();
+      }
+      _qsParams!.addAll(params);
     }
-    _qsParams!.addAll(params);
     return this;
   }
 
@@ -189,7 +251,7 @@ class ApiRequestBuilder {
     return this;
   }
 
-  ApiRequestBuilder body(Map<String, dynamic> body) {
+  ApiRequestBuilder body(Object? body) {
     _body = body;
     return this;
   }
@@ -214,19 +276,192 @@ class ApiRequestBuilder {
   }
 }
 
-class RemoteSchemaChangeset {
-  static fromResponseJson(String collectionName, Map<String, dynamic> json) {
+class RemoteSchemaChangelog {
+  
+  static empty(String schemaName){
+    return RemoteSchemaChangelog(schemaName, [], []);
+  }
+  
+  static fromResponseJson(String schemaName, Map<String, dynamic> json) {
     List<String> columns = (json['headers'] as List<dynamic>).cast<String>();
     final data = (json['data'] as List<dynamic>);
 
-    return RemoteSchemaChangeset(collectionName, columns, data);
+    return RemoteSchemaChangelog(schemaName, columns, data);
   }
 
-  final String collectionName;
+  final String schemaName;
   final List<String> remoteColumnNames;
-  final List<dynamic> data;
+  final List<dynamic> rawData;
 
-  RemoteSchemaChangeset(this.collectionName, this.remoteColumnNames, this.data);
+  _RemoteSchemaChangelogSpec? _internalSpec;
+
+  RemoteSchemaChangelog(this.schemaName, this.remoteColumnNames, this.rawData);
+
+  List<String> get schemaAttributeNames {
+    return _spec().schemaAttributeNames;
+  }
+
+  _RemoteSchemaChangelogSpec _spec() {
+    final x = _internalSpec;
+    if (x != null) {
+      return x;
+    }
+
+    final schema = SyncSchema.byName(this.schemaName);
+    List<String> localColumnNames = schema?.remoteReadableColumns.map((e) => e.name).toList() ?? List.empty();
+    var deletedColIndex = -1;
+    var idColIndex = -1;
+    var remoteColIndex = -1;
+    var remoteRevisionDateColIndex = -1;
+
+    List<String> schemaAttributeNames = [];
+    List<int> remoteValueIndices = [];
+    for (var key in this.remoteColumnNames) {
+      remoteColIndex += 1;
+      if (deletedColIndex < 0 && key == SyncSchema.REMOTE_COL_DELETED) {
+        deletedColIndex = remoteColIndex;
+        continue;
+      }
+
+      if (remoteRevisionDateColIndex < 0 && key == SyncSchema.REMOTE_COL_REVISION_DATE) {
+        remoteRevisionDateColIndex = remoteColIndex;
+        continue;
+      }
+
+      if (idColIndex < 0 && key == SyncSchema.REMOTE_COL_ID) {
+        idColIndex = remoteColIndex;
+      }
+
+      final colIdx = localColumnNames.indexOf(key);
+      if (colIdx < 0) {
+        continue;
+      }
+      schemaAttributeNames.add(key);
+      remoteValueIndices.add(remoteColIndex);
+    }
+
+    _internalSpec = _RemoteSchemaChangelogSpec(
+        idColIndex, remoteRevisionDateColIndex, deletedColIndex, schemaAttributeNames, remoteValueIndices);
+    return this._spec();
+  }
+
+  Iterable<RemoteSchemaChangelogEntry> entries() sync* {
+    final deletedValues = HashSet.from([1, 'true', true]);
+
+    bool? recDeleted;
+    int? recRevNum;
+    String? recId;
+
+    int index = 0;
+
+    final spec = this._spec();
+
+    for (dynamic raw in this.rawData) {
+      recDeleted = null;
+      recRevNum = null;
+      recId = null;
+
+      final row = raw.cast<Object?>();
+
+      if (spec.deletedColIndex >= 0) {
+        recDeleted = deletedValues.contains(row[spec.deletedColIndex]);
+      }
+
+      if (spec.remoteRevisionDateColIndex >= 0) {
+        recRevNum = SyncSchema.parseRevNum(row[spec.remoteRevisionDateColIndex]);
+      }
+
+      if (spec.idColIndex >= 0) {
+        final rawId = row[spec.idColIndex];
+        if (rawId is int) {
+          recId = rawId.toString();
+        } else if (rawId is String) {
+          recId = rawId;
+        }
+      }
+
+      yield RemoteSchemaChangelogEntry(this, index, recId, recRevNum, recDeleted);
+
+      index += 1;
+    }
+  }
+}
+
+class _RemoteSchemaChangelogSpec {
+  final int idColIndex;
+  final int remoteRevisionDateColIndex;
+  final int deletedColIndex;
+
+  final List<String> schemaAttributeNames;
+  final List<int> remoteValueIndices;
+
+  _RemoteSchemaChangelogSpec(this.idColIndex, this.remoteRevisionDateColIndex, this.deletedColIndex,
+      this.schemaAttributeNames, this.remoteValueIndices);
+}
+
+class RemoteSchemaChangelogEntry {
+  final RemoteSchemaChangelog _owner;
+  final int index;
+  final int? revisionNum;
+  final bool? isDeleted;
+  final String? id;
+
+  int? get numericId {
+    if (id == null) {
+      return null;
+    }
+    return int.tryParse(id!);
+  }
+
+  RemoteSchemaChangelogEntry(this._owner, this.index, this.id, this.revisionNum, this.isDeleted);
+
+  List<Object?> get rawValues {
+    final item = this._owner.rawData[this.index];
+    return item.cast<Object?>();
+  }
+
+  List<Object?> get schemaValues {
+    final s = _owner._spec();
+    final raw = s.schemaAttributeNames;
+    final List<Object?> res = [];
+
+    for (var idx in s.remoteValueIndices) {
+      res.add(raw[idx]);
+    }
+
+    return res;
+  }
+
+  bool putSchemaValues(List<Object?> dest) {
+    final s = _owner._spec();
+    final row = this.rawValues;
+    for (var idx = 0; idx < s.schemaAttributeNames.length; idx += 1) {
+      final value = row[idx];
+      if (idx < dest.length) {
+        dest[idx] = value;
+      } else {
+        dest.add(value);
+      }
+    }
+    return true;
+  }
+
+  Map<String, dynamic> toMap() {
+    final row = this.rawValues;
+    final Map<String, dynamic> objData = {};
+    for (var idx = 0; idx < _owner.remoteColumnNames.length; idx++) {
+      objData[_owner.remoteColumnNames[idx]] = row[idx];
+    }
+
+    return objData;
+  }
+
+  SyncObject? toSyncObject() {
+    final schema = SyncSchema.byName(_owner.schemaName);
+    if (schema != null) {
+      return schema.instantiate(toMap());
+    }
+  }
 }
 
 class UserAccount {

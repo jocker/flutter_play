@@ -5,9 +5,9 @@ import '../sync/sync_object.dart';
 class Location extends SyncObject<Location> {
   static const SchemaName SCHEMA_NAME = 'locations';
 
-  static final schema = SyncDbSchema<Location>(SCHEMA_NAME, allocate: () => Location(), columns: [
-    SyncDbColumn.id(),
-    SyncDbColumn(
+  static final schema = SyncSchema<Location>(SCHEMA_NAME, allocate: () => Location(), columns: [
+    SyncColumn.id(),
+    SyncColumn(
       "location_name",
       assignAttribute: (value, key, dest) {
         dest.locationName = value.getValue(key) ?? dest.locationName;
@@ -16,7 +16,7 @@ class Location extends SyncObject<Location> {
         return dest.locationName;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "location_address",
       assignAttribute: (value, key, dest) {
         dest.address = value.getValue(key) ?? dest.address;
@@ -25,7 +25,7 @@ class Location extends SyncObject<Location> {
         return dest.address;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "location_address2",
       assignAttribute: (value, key, dest) {
         dest.addressSecondary = value.getValue(key) ?? dest.addressSecondary;
@@ -34,7 +34,7 @@ class Location extends SyncObject<Location> {
         return dest.addressSecondary;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "location_city",
       assignAttribute: (value, key, dest) {
         dest.city = value.getValue(key) ?? dest.city;
@@ -43,7 +43,7 @@ class Location extends SyncObject<Location> {
         return dest.city;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "location_state",
       assignAttribute: (value, key, dest) {
         dest.state = value.getValue(key) ?? dest.state;
@@ -52,7 +52,7 @@ class Location extends SyncObject<Location> {
         return dest.state;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "location_zip",
       assignAttribute: (value, key, dest) {
         dest.postalCode = value.getValue(key) ?? dest.postalCode;
@@ -61,7 +61,7 @@ class Location extends SyncObject<Location> {
         return dest.postalCode;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "location_type",
       assignAttribute: (value, key, dest) {
         dest.type = value.getValue(key) ?? dest.type;
@@ -70,7 +70,7 @@ class Location extends SyncObject<Location> {
         return dest.type;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "last_visit",
       assignAttribute: (value, key, dest) {
         dest.lastVisit = value.getValue(key) ?? dest.lastVisit;
@@ -79,7 +79,7 @@ class Location extends SyncObject<Location> {
         return dest.lastVisit;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "planogram_id",
       assignAttribute: (value, key, dest) {
         dest.planogramId = value.getValue(key) ?? dest.planogramId;
@@ -88,7 +88,7 @@ class Location extends SyncObject<Location> {
         return dest.planogramId;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "flags",
       assignAttribute: (value, key, dest) {
         dest.flags = value.getValue(key) ?? dest.flags;
@@ -97,7 +97,7 @@ class Location extends SyncObject<Location> {
         return dest.flags;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "lat",
       assignAttribute: (value, key, dest) {
         dest.latitude = value.getValue(key) ?? dest.latitude;
@@ -106,7 +106,7 @@ class Location extends SyncObject<Location> {
         return dest.latitude;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "long",
       assignAttribute: (value, key, dest) {
         dest.longitude = value.getValue(key) ?? dest.longitude;
@@ -115,7 +115,7 @@ class Location extends SyncObject<Location> {
         return dest.longitude;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "account",
       assignAttribute: (value, key, dest) {
         dest.account = value.getValue(key) ?? dest.account;
@@ -124,7 +124,7 @@ class Location extends SyncObject<Location> {
         return dest.account;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "route",
       assignAttribute: (value, key, dest) {
         dest.route = value.getValue(key) ?? dest.route;
@@ -133,7 +133,7 @@ class Location extends SyncObject<Location> {
         return dest.route;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "location_make",
       assignAttribute: (value, key, dest) {
         dest.make = value.getValue(key) ?? dest.make;
@@ -142,7 +142,7 @@ class Location extends SyncObject<Location> {
         return dest.route;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "location_model",
       assignAttribute: (value, key, dest) {
         dest.model = value.getValue(key) ?? dest.model;
@@ -151,7 +151,7 @@ class Location extends SyncObject<Location> {
         return dest.model;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "machine_serial",
       assignAttribute: (value, key, dest) {
         dest.machineSerial = value.getValue(key) ?? dest.machineSerial;
@@ -160,7 +160,7 @@ class Location extends SyncObject<Location> {
         return dest.machineSerial;
       },
     ),
-    SyncDbColumn(
+    SyncColumn(
       "cardreader_serial",
       assignAttribute: (value, key, dest) {
         dest.cardReaderSerial = value.getValue(key) ?? dest.cardReaderSerial;
@@ -191,7 +191,7 @@ class Location extends SyncObject<Location> {
   String? cardReaderSerial;
 
   @override
-  SyncDbSchema<Location> getSchema() {
+  SyncSchema<Location> getSchema() {
     return schema;
   }
 }

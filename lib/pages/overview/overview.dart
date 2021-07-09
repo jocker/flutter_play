@@ -14,7 +14,7 @@ class OverviewPage extends StatelessWidget {
     print("aaaaaa");
     print("aaaaaa");
 
-    () async {
+        () async {
       if (_listening) {
         return;
       }
@@ -26,7 +26,7 @@ class OverviewPage extends StatelessWidget {
       final int id = db.selectValue("select id from locations limit 1;");
       final strId = db.selectValue<String>("select id from locations limit 1;");*/
       final values = db.selectOne("select * from columns where id=615586");
-      final coil = Coil.schema.createObject(values);
+      final coil = Coil.schema.instantiate(values);
       final v = coil.dumpValues();
       print("xxxxx");
 
@@ -60,11 +60,14 @@ class OverviewPage extends StatelessWidget {
             ],
           ),
           TextButton(
-            child: Text("Update"),
+            child: Text("CREATE"),
             onPressed: () async {
-              final api = Api();
-              final resp = await api.updateSchemaObject(UserAccount.current, "columns", 615586, {"column_name": "123"});
-              print("done");
+              final api = Api(UserAccount.current);
+              final createResp = await api.createSchemaObject("locations", {"location_name": "TEST"});
+              final created = createResp.body?.toList().first.entries().toList().first.toSyncObject();
+              final deleteResp = await api.deleteSchemaObject("locations", created!.getId());
+              final l = createResp.body?.toList().first.entries().toList().first.toSyncObject();
+              print(l);
             },
           ),
           TextButton(

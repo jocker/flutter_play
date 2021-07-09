@@ -1,6 +1,8 @@
 import 'package:uuid/uuid.dart';
 import 'package:uuid/uuid_util.dart';
 
+
+
 T? readPrimitive<T>(dynamic v) {
   if (v is T) {
     return v;
@@ -11,10 +13,27 @@ T? readPrimitive<T>(dynamic v) {
       return DateTime.tryParse(raw) as T?;
     }
   }
+  if(T == int){
+    var raw = readPrimitive<String>(v);
+    if(raw != null){
+      return int.tryParse(raw) as T?;
+    }
+  }
+  if(T == double){
+    var raw = readPrimitive<String>(v);
+    if(raw != null){
+      return double.tryParse(raw) as T?;
+    }
+  }
+
   if (T == bool) {
     var intBool = readPrimitive<int>(v);
     if (intBool != null) {
       return (intBool == 1) as T;
+    }
+    var raw = readPrimitive<String>(v);
+    if (raw != null) {
+      return (raw == '1') as T;
     }
   }
 
