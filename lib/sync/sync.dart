@@ -97,7 +97,10 @@ class SyncEngineIsolate {
       unsynced.addAll(SyncEngine.SYNC_SCHEMAS.map((e) => SchemaVersion(e, 0)));
     }
 
-    unsynced = unsynced.where((element) => SyncSchema.byName(element.schemaName)?.remoteReadable ?? false).toList();
+    unsynced = unsynced.where((element) =>
+    SyncSchema
+        .byName(element.schemaName)
+        ?.remoteReadable ?? false).toList();
 
     final unsyncedResp = await _remoteRepository.changes(unsynced, includeDeleted: includeDeleted);
     if (!unsyncedResp.isSuccess) {
@@ -159,18 +162,78 @@ class SyncEngineIsolate {
         MutationResult? remoteResult;
         try {
           remoteResult =
-              await schema.remoteMutationHandler.submitMutation(mutData, _localRepository, _remoteRepository);
+          await schema.remoteMutationHandler.submitMutation(mutData, _localRepository, _remoteRepository);
         } on RemoteMutationException catch (e) {
           return e.asMutationResult();
         }
+        final res =
         await schema.remoteMutationHandler.applyRemoteMutationResult(mutData, remoteResult, _localRepository);
+        _handleMutationResult(res);
+        return res;
       } else {
         // enqueue this mutation for submitting it later
         _localRepository.dbConn.insert(ObjectMutationData.TABLE_NAME, mutData.toDbValues());
       }
     }
 
-    return await schema.localMutationHandler.applyLocalMutation(mutData, _localRepository);
+    final res = await schema.localMutationHandler.applyLocalMutation(mutData, _localRepository);
+    _handleMutationResult(res);
+    return res;
+  }
+
+  _handleMutationResult(MutationResult mutationRes) {
+    if (mutationRes.isSuccessful) {
+      _localRepository.dbConn.runInTransaction((tx) {
+        final replacements = mutationRes.replacements;
+        if (replacements != null) {
+          for (final repl in replacements) {
+            final schema = repl.object.getSchema();
+            final idCol = schema.idColumn;
+            if (idCol == null) {
+              continue;
+            }
+
+            tx.execute(
+                "update ${schema.tableName} set ${idCol.name}=? where ${idCol.name} =? ", [repl.newId, repl.prevId]);
+
+            tx.insert("_sync_object_resolved_ids", {
+              "schema_name": schema.schemaName,
+              "local_id": repl.prevId,
+              "remote_id": repl.newId,
+            }, onConflict: OnConflictDo.Ignore);
+
+          }
+        }
+
+        final created = mutationRes.created;
+        if (created != null) {
+          for (final rec in created) {
+            _localRepository.insertValues(
+                rec.getSchema(), rec.dumpValues().toMap(), db: tx, onConflict: OnConflictDo.Replace);
+          }
+        }
+
+        final updated = mutationRes.updated;
+        if (updated != null) {
+          for (final rec in updated) {
+            _localRepository.updateEntry(rec.getSchema(), rec.getId(), rec.dumpValues().toMap(), db: tx);
+          }
+        }
+
+        final deleted = mutationRes.deleted;
+        if (deleted != null) {
+          for (final rec in deleted) {
+            _localRepository.deleteEntry(rec.getSchema(), rec.getId(), db: tx);
+          }
+        }
+
+        return true;
+      });
+
+      for (final schemaName in mutationRes.affectedSchemas()) {
+        _localRepository.localSchemaInfos[schemaName]?.invalidateVersion();
+      }
+    }
   }
 
   _getSchemaSignature(List<String> schemaNames) {
@@ -295,7 +358,7 @@ class SyncEngine extends TaskRunner {
   Future<Stream<int>> watchSchemas(List<String> schemaNames) async {
     final p = ReceivePort();
     WatchSchemasReply reply =
-        await this.exec(_MESSAGE_TYPE_WATCH_SCHEMA_CHANGED, args: WatchSchemasMessage(p.sendPort, schemaNames));
+    await this.exec(_MESSAGE_TYPE_WATCH_SCHEMA_CHANGED, args: WatchSchemasMessage(p.sendPort, schemaNames));
 
     StreamController<int> controller = StreamController<int>(
       onCancel: () {
@@ -357,7 +420,9 @@ class MutateSyncObjectMessage {
 
   static MutateSyncObjectMessage forObject(SyncObject object, SyncObjectMutationType op) {
     return MutateSyncObjectMessage(
-      object.getSchema().schemaName,
+      object
+          .getSchema()
+          .schemaName,
       op,
       object.dumpValues().toMap(),
     );

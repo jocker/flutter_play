@@ -221,14 +221,14 @@ class DbConn {
     });
 
     final query = StringBuffer("insert");
-    switch (onConflict ?? OnConflictDo.Nothing) {
+    switch (onConflict ?? OnConflictDo.Fail) {
       case OnConflictDo.Ignore:
         query.write(" or ignore ");
         break;
       case OnConflictDo.Replace:
         query.write(" or replace ");
         break;
-      case OnConflictDo.Nothing:
+      case OnConflictDo.Fail:
       default:
         break;
     }
@@ -285,4 +285,4 @@ class DbResult {
   DbResult(this.affectedCount, this.lastInsertId);
 }
 
-enum OnConflictDo { Nothing, Ignore, Replace }
+enum OnConflictDo { Fail, Ignore, Replace }

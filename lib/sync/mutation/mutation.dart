@@ -17,10 +17,10 @@ class MutationResult {
   bool? _isSuccessful;
   Map<String, String>? _errorsMessages;
   SyncStorageType sourceStorage;
-  List<SyncObject>? _created;
-  List<SyncObject>? _updated;
-  List<SyncObject>? _deleted;
-  List<SyncObjectReplacement>? _replacements;
+  List<SyncObject>? created;
+  List<SyncObject>? updated;
+  List<SyncObject>? deleted;
+  List<SyncObjectReplacement>? replacements;
 
   MutationResult(this.sourceStorage);
 
@@ -43,13 +43,13 @@ class MutationResult {
     }
     switch (op) {
       case SyncObjectMutationType.Create:
-        _created = (_created ?? [])..add(obj);
+        created = (created ?? [])..add(obj);
         break;
       case SyncObjectMutationType.Update:
-        _updated = (_updated ?? [])..add(obj);
+        updated = (updated ?? [])..add(obj);
         break;
       case SyncObjectMutationType.Delete:
-        _deleted = (_deleted ?? [])..add(obj);
+        deleted = (deleted ?? [])..add(obj);
         break;
       default:
         return;
@@ -57,7 +57,7 @@ class MutationResult {
   }
 
   replace(int prevId, int newId, SyncObject replacement) {
-    _replacements = (_replacements ?? [])
+    replacements = (replacements ?? [])
       ..add(SyncObjectReplacement(prevId: prevId, newId: newId, object: replacement));
   }
 
@@ -67,6 +67,20 @@ class MutationResult {
 
   Map<String, dynamic> toJson() {
     return {};
+  }
+
+  Set<String> affectedSchemas() {
+    if (this.isSuccessful) {
+      final schemas = Set<String>();
+      schemas.addAll((created ?? List.empty()).map((e) => e.getSchema().schemaName));
+      schemas.addAll((updated ?? List.empty()).map((e) => e.getSchema().schemaName));
+      schemas.addAll((deleted ?? List.empty()).map((e) => e.getSchema().schemaName));
+      schemas.addAll((replacements ?? List.empty()).map((e) => e.object.getSchema().schemaName));
+
+      return schemas;
+    }
+
+    return Set.identity();
   }
 }
 

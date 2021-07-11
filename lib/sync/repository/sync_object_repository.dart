@@ -4,30 +4,34 @@ import '../constants.dart';
 import '../schema.dart';
 import '../sync_object.dart';
 
-mixin SyncObjectRepository{
-
+mixin SyncObjectRepository {
   DbConn getDb();
+
   int getNextInsertId(String schemaName);
 
-  T? loadObjectById<T>(SyncSchema<T> schema, int id) {
+  T? loadObjectById<T extends SyncObject<T>>(SyncSchema<T> schema, int id, {DbConn? db}) {
     final idColName = schema.idColumn?.name;
     if (idColName == null) {
       return null;
     }
 
-    return loadFirstObjectBy(schema, {idColName: id});
+    return loadFirstObjectBy(schema, {idColName: id}, db: db ?? getDb());
   }
 
-  T? loadFirstObjectBy<T>(SyncSchema<T> schema, Map<String, dynamic> where) {
+  T? loadFirstObjectBy<T extends SyncObject<T>>(SyncSchema<T> schema, Map<String, dynamic> where, {DbConn? db}) {
     List<String> wheres = [];
     List<dynamic> params = [];
+
+    if (db == null) {
+      db = getDb();
+    }
 
     for (var k in where.keys) {
       wheres.add("$k=?");
       params.add(where[k]);
     }
 
-    final values = getDb().selectOne("select * from ${schema.tableName} where ${wheres.join(" and ")} limit 1", params);
+    final values = db.selectOne("select * from ${schema.tableName} where ${wheres.join(" and ")} limit 1", params);
     if (values == null) {
       return null;
     }
@@ -37,7 +41,11 @@ mixin SyncObjectRepository{
     return instance;
   }
 
-  T? insertObject<T>(SyncSchema<T> schema, Map<String, dynamic> values) {
+  int insertValues(SyncSchema schema, Map<String, dynamic> values, {DbConn? db, OnConflictDo? onConflict}) {
+    if (db == null) {
+      db = getDb();
+    }
+
     var id = 0;
     final idCol = schema.idColumn;
     if (idCol != null) {
@@ -45,35 +53,62 @@ mixin SyncObjectRepository{
       id = getNextInsertId(schema.schemaName);
       values[idCol.name] = id;
     }
-    getDb().insert(schema.schemaName, values);
-    final rowId = getDb().lastInsertRowId;
-    if (getDb().affectedRowsCount == 1 && rowId != 0) {
-      return loadFirstObjectBy(schema, {"rowid": rowId});
+
+    db.insert(schema.schemaName, values, onConflict: onConflict);
+    final rowId = db.lastInsertRowId;
+    if (db.affectedRowsCount == 1 && rowId != 0) {
+      return rowId;
+    }
+    return 0;
+  }
+
+  T? insertObject<T extends SyncObject<T>>(SyncSchema<T> schema, Map<String, dynamic> values,
+      {DbConn? db, OnConflictDo? onConflict}) {
+    final rowId = insertValues(schema, values, db: db, onConflict: onConflict);
+
+    if (rowId != 0) {
+      return loadFirstObjectBy(schema, {"rowid": rowId}, db: db);
     }
     return null;
   }
 
-  T? updateObject<T>(SyncSchema<T> schema, int id, Map<String, dynamic> values) {
-    final idCol = schema.idColumn?.name;
-    if (idCol == null) {
-      return null;
+  bool updateEntry(SyncSchema schema, int id, Map<String, dynamic> values, {DbConn? db}) {
+    if (db == null) {
+      db = getDb();
     }
-    getDb().update(schema.tableName, values, {idCol: id});
-    if (getDb().affectedRowsCount == 1) {
-      return loadObjectById(schema, id);
-    }
-    return null;
-  }
 
-  bool deleteObject<T>(SyncSchema<T> schema, int id) {
     final idCol = schema.idColumn?.name;
     if (idCol == null) {
       return false;
     }
 
-    getDb().execute("delete from ${schema.tableName} where $idCol=?", [id]);
+    db.update(schema.tableName, values, {idCol: id});
+    return db.affectedRowsCount == 1;
+  }
 
-    return getDb().affectedRowsCount == 1;
+  T? updateObject<T extends SyncObject<T>>(SyncSchema<T> schema, int id, Map<String, dynamic> values, {DbConn? db}) {
+    if (db == null) {
+      db = getDb();
+    }
+
+    if (updateEntry(schema, id, values, db: db)) {
+      return loadObjectById(schema, id, db: db);
+    }
+    return null;
+  }
+
+  bool deleteEntry(SyncSchema schema, int id, {DbConn? db}) {
+    if (db == null) {
+      db = getDb();
+    }
+    final idCol = schema.idColumn?.name;
+    if (idCol == null) {
+      return false;
+    }
+
+    db.execute("delete from ${schema.tableName} where $idCol=?", [id]);
+
+    return db.affectedRowsCount == 1;
   }
 
   SyncObjectPersistenceState getObjectPersistenceState(SyncObject model) {

@@ -111,6 +111,7 @@ class Api {
     return await _makeRequestForChangeset(HttpMethod.DELETE, "collections/$schemaName/$objectId");
   }
 
+
   Future<Result<List<RemoteSchemaChangelog>>> _makeRequestForChangeset(HttpMethod httpMethod, String urlPath,
       {Object? payload, bool? includeDeleted, Map<String, String>? queryParams}) async {
     var reqQp = {
@@ -147,36 +148,6 @@ class Api {
     return changesetResp;
   }
 
-  _parseCrudResponse(String rawJson) {
-    final res = HashMap<String, List<SyncObject>>();
-    Map<String, dynamic> resp = jsonDecode(rawJson);
-
-    for (String schemaName in resp.keys) {
-      final schema = SyncSchema.byName(schemaName);
-      if (schema == null) {
-        continue;
-      }
-      final rawValue = resp[schemaName];
-      if (rawValue is List) {
-        for (var rawItem in rawValue) {
-          Map<String, dynamic>? valuesMap;
-          try {
-            valuesMap = rawItem;
-          } catch (e) {}
-          if (valuesMap == null) {
-            continue;
-          }
-          final obj = schema.instantiate(valuesMap);
-          if (!res.containsKey(schemaName)) {
-            res[schemaName] = [obj];
-          } else {
-            res[schemaName]!.add(obj);
-          }
-        }
-      }
-    }
-    return res;
-  }
 }
 
 enum HttpMethod { GET, POST, PUT, DELETE }

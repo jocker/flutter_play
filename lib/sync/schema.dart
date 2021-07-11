@@ -57,7 +57,7 @@ class SyncColumn<T> {
   assign() {}
 }
 
-class SyncSchema<T> {
+class SyncSchema<T extends SyncObject<T>> {
   static const REMOTE_COL_REVISION_DATE = "updated_at";
   static const REMOTE_COL_DELETED = "deleted";
   static const REMOTE_COL_ID = "id";

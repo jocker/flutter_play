@@ -30,7 +30,7 @@ mixin DefaultLocalMutationHandlerMixin<T extends SyncObject<T>> {
     switch (op) {
       case SyncObjectMutationType.Update:
         if (!syncObj.isNewRecord()) {
-          final prevInstance = localRepo.loadObjectById(syncObj.getSchema(), syncObj.getId());
+          final prevInstance = localRepo.loadObjectById(syncObj.getSchema(), syncObj.getId()) as T?;
           if (prevInstance == null) {
             return null;
           }
@@ -70,24 +70,24 @@ mixin DefaultLocalMutationHandlerMixin<T extends SyncObject<T>> {
   MutationResult applyLocalMutationForObject(ObjectMutationData mutData, LocalRepository localRepo) {
     final mutResult = MutationResult(SyncStorageType.Local);
 
-    final schema = SyncSchema.byName(mutData.schemaName) as SyncSchema<SyncObject>?;
+    final schema = SyncSchema.byName(mutData.schemaName) as SyncSchema<T>?;
     if (schema == null) {
       return mutResult..setSuccessful(false);
     }
 
-    SyncObject? rec;
+    T? rec;
 
     switch (mutData.mutationType) {
       case SyncObjectMutationType.Create:
-        rec = localRepo.insertObject(schema, mutData.data!);
+        rec = localRepo.insertObject(schema, mutData.data!) as T;
         break;
       case SyncObjectMutationType.Update:
-        rec = localRepo.updateObject(schema, mutData.objectId, mutData.data!);
+        rec = localRepo.updateObject(schema, mutData.objectId, mutData.data!) as T;
         break;
       case SyncObjectMutationType.Delete:
-        rec = localRepo.loadObjectById(schema, mutData.objectId);
+        rec = localRepo.loadObjectById(schema, mutData.objectId) as T?;
         if (rec != null) {
-          if (!localRepo.deleteObject(schema, mutData.objectId)) {
+          if (!localRepo.deleteEntry(schema, mutData.objectId)) {
             rec = null;
           }
         }
