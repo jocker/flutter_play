@@ -1,7 +1,7 @@
 import 'package:vgbnd/sync/schema.dart';
 import 'package:vgbnd/sync/value_holder.dart';
 
-abstract class SyncObject<T> {
+abstract class SyncObject<T extends SyncObject<T>> {
   static const _SCHEMA_ATTR_NAME = "__schema";
 
   static SyncObject<T>? fromJson<T extends SyncObject<T>>(Map<String, dynamic> values) {

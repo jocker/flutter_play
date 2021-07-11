@@ -183,19 +183,19 @@ create table if not exists  _schema_info(
 	primary key(schema_name)
 );
 
-create table if not exists  _schema_changelog(
-    id varchar(255) not null,
+create table if not exists  _sync_pending_remote_mutations(
+    unique_id varchar(255) not null,
     schema_name varchar(255) not null,
     object_id integer not null,
-    operation tinyint not null,
+    mutation_type tinyint not null,
     data text,
     error_messages text,
     status tinyint not null default 0,
-    rev_num timestamp not null default current_timestamp,
-    primary key(id)
+    rev_num integer not null,
+    unique(schema_name, object_id, rev_num)
 );
 
-create table if not exists  _sync_object_id(
+create table if not exists  _sync_object_resolved_ids(
     schema_name varchar(255) not null,
     local_id integer not null,
     remote_id integer not null default 0,

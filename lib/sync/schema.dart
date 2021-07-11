@@ -10,7 +10,7 @@ import 'package:vgbnd/sync/constants.dart';
 import 'package:vgbnd/sync/sync_object.dart';
 import 'package:vgbnd/sync/value_holder.dart';
 
-import 'mutation/base.dart';
+import 'mutation/mutation.dart';
 
 typedef SchemaName = String;
 
@@ -22,7 +22,7 @@ class SchemaVersion {
 }
 
 class SyncColumn<T> {
-  static SyncColumn<T> readonly<T extends SyncObject>(String colName, {SchemaName? referenceOf}) {
+  static SyncColumn<T> readonly<T extends SyncObject<T>>(String colName, {SchemaName? referenceOf}) {
     return SyncColumn<T>(
       "id",
       readAttribute: (dest) => throw UnsupportedError("unsupported"),
@@ -32,7 +32,7 @@ class SyncColumn<T> {
     );
   }
 
-  static SyncColumn<T> id<T extends SyncObject>() {
+  static SyncColumn<T> id<T extends SyncObject<T>>() {
     return SyncColumn<T>(
       "id",
       readAttribute: (dest) => dest.id,
@@ -102,7 +102,7 @@ class SyncSchema<T> {
     return byName(name) != null;
   }
 
-  static SyncSchema? byName(String name) {
+  static SyncSchema<dynamic>? byName(String name) {
     switch (name) {
       case Coil.SCHEMA_NAME:
         return Coil.schema;
@@ -138,7 +138,7 @@ class SyncSchema<T> {
     this.tableName = tableName ?? this.schemaName;
     this.syncOps = syncOps ?? [SyncSchemaOp.RemoteRead, SyncSchemaOp.RemoteWrite];
     this.localMutationHandler = localMutationHandler ?? LocalMutationHandler.basic();
-    this.remoteMutationHandler = remoteMutationHandler ?? RemoteMutationHandler.empty();
+    this.remoteMutationHandler = remoteMutationHandler ?? RemoteMutationHandler.empty<T>();
   }
 
   PrimitiveValueHolder getValues(T obj) {

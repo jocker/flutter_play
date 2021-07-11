@@ -21,9 +21,9 @@ import 'package:vgbnd/sync/repository/_remote_repository.dart';
 import 'package:vgbnd/sync/schema.dart';
 import 'package:vgbnd/sync/sync_object.dart';
 
-import 'mutation/base.dart';
-import 'repository/_local_repository.dart';
+import 'mutation/mutation.dart';
 import 'net_connectivity_info.dart';
+import 'repository/_local_repository.dart';
 
 const _MESSAGE_TYPE_PULL_CHANGES = "pull_changes",
     _MESSAGE_TYPE_INVALIDATE_CACHE = "invalidate_cache",
@@ -105,7 +105,7 @@ class SyncEngineIsolate {
     }
 
     for (var changeset in unsyncedResp.body!) {
-      int revNum = _localRepository.saveRemoteChangeset(changeset);
+      _localRepository.saveRemoteChangeset(changeset);
     }
 
     return true;
@@ -138,18 +138,39 @@ class SyncEngineIsolate {
     return WatchSchemasReply(initial, cancel.sendPort);
   }
 
-  Future<MutationResult> handleMutationRequest(ObjectMutationData mutationData) async {
-    switch (mutationData.operation) {
-      case SyncObjectMutationType.Create:
-        _remoteRepository.create
-        break;
-      case SyncObjectMutationType.Update:
-        break;
-      case SyncObjectMutationType.Delete:
-        break;
-      default:
-        return MutationResult.failure();
+  Future<MutationResult> handleMutationRequest(MutateSyncObjectMessage req) async {
+    final syncObject = req.getObject();
+    if (syncObject == null) {
+      return MutationResult.failure();
     }
+    final schema = syncObject.getSchema();
+
+    if (!schema.localMutationHandler.canHandleMutationType(req.op)) {
+      return MutationResult.failure();
+    }
+
+    final mutData = await schema.localMutationHandler.createMutation(_localRepository, syncObject, req.op);
+    if (mutData == null) {
+      return MutationResult.failure();
+    }
+
+    if (schema.remoteMutationHandler.canHandleMutationType(req.op)) {
+      if (_connectivityInfo.networkingEnabled) {
+        MutationResult? remoteResult;
+        try {
+          remoteResult =
+              await schema.remoteMutationHandler.submitMutation(mutData, _localRepository, _remoteRepository);
+        } on RemoteMutationException catch (e) {
+          return e.asMutationResult();
+        }
+        await schema.remoteMutationHandler.applyRemoteMutationResult(mutData, remoteResult, _localRepository);
+      } else {
+        // enqueue this mutation for submitting it later
+        _localRepository.dbConn.insert(ObjectMutationData.TABLE_NAME, mutData.toDbValues());
+      }
+    }
+
+    return await schema.localMutationHandler.applyLocalMutation(mutData, _localRepository);
   }
 
   _getSchemaSignature(List<String> schemaNames) {
@@ -177,12 +198,9 @@ class SyncEngineIsolate {
         _connectivityInfo.setValue(message.args as int);
         return;
       case _MESSAGE_TYPE_MUTATE_SYNC_OBJECT:
-        final arg = message.args as Map<String, dynamic>;
-        final mutData = ObjectMutationData.fromJson(arg);
-        if (mutData == null) {
-          return MutationResult.failure();
-        }
-        return await handleMutationRequest(mutData);
+        final msg = message.args as MutateSyncObjectMessage;
+
+        return await handleMutationRequest(msg);
       default:
         throw Exception("SyncEngineBackEnd doesn't know how to handle ${message.type}");
     }
@@ -192,6 +210,10 @@ class SyncEngineIsolate {
 // runs in the main isolate and schedules tasks to run in a background isloate
 class SyncEngine extends TaskRunner {
   static final _instances = HashMap<int, SyncEngine>();
+
+  static SyncEngine current() {
+    return SyncEngine.forAccount(UserAccount.current);
+  }
 
   static SyncEngine forAccount(UserAccount account) {
     if (!_instances.containsKey(account.id)) {
@@ -290,8 +312,7 @@ class SyncEngine extends TaskRunner {
   }
 
   Future<MutationResult> mutateObject(SyncObject obj, SyncObjectMutationType op) async {
-    final mutData = ObjectMutationData.fromModel(obj, op).toJson();
-    return await this.exec(_MESSAGE_TYPE_MUTATE_SYNC_OBJECT, args: mutData);
+    return await this.exec(_MESSAGE_TYPE_MUTATE_SYNC_OBJECT, args: MutateSyncObjectMessage.forObject(obj, op));
   }
 
   Future<String> getLocalDatabasePath() async {
@@ -325,4 +346,24 @@ class WatchSchemasReply {
   final int dataVersion;
 
   WatchSchemasReply(this.dataVersion, this.cancelPort);
+}
+
+class MutateSyncObjectMessage {
+  final Map<String, dynamic> syncObjectAttrs;
+  final String schemaName;
+  final SyncObjectMutationType op;
+
+  MutateSyncObjectMessage(this.schemaName, this.op, this.syncObjectAttrs);
+
+  static MutateSyncObjectMessage forObject(SyncObject object, SyncObjectMutationType op) {
+    return MutateSyncObjectMessage(
+      object.getSchema().schemaName,
+      op,
+      object.dumpValues().toMap(),
+    );
+  }
+
+  SyncObject? getObject() {
+    return SyncSchema.byName(this.schemaName)?.instantiate(this.syncObjectAttrs);
+  }
 }

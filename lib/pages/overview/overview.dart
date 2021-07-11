@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:vgbnd/api/api.dart';
 import 'package:vgbnd/data/db.dart';
 import 'package:vgbnd/models/coil.dart';
+import 'package:vgbnd/models/location.dart';
+import 'package:vgbnd/sync/constants.dart';
 import 'package:vgbnd/sync/sync.dart';
 import 'package:vgbnd/widgets/numeric_stepper_input.dart';
 
@@ -14,7 +16,7 @@ class OverviewPage extends StatelessWidget {
     print("aaaaaa");
     print("aaaaaa");
 
-        () async {
+    () async {
       if (_listening) {
         return;
       }
@@ -63,11 +65,12 @@ class OverviewPage extends StatelessWidget {
             child: Text("CREATE"),
             onPressed: () async {
               final api = Api(UserAccount.current);
-              final createResp = await api.createSchemaObject("locations", {"location_name": "TEST"});
-              final created = createResp.body?.toList().first.entries().toList().first.toSyncObject();
-              final deleteResp = await api.deleteSchemaObject("locations", created!.getId());
-              final l = createResp.body?.toList().first.entries().toList().first.toSyncObject();
-              print(l);
+
+              final loc = new Location();
+              loc.locationName = "test sync";
+
+              final x = await SyncEngine.current().mutateObject(loc, SyncObjectMutationType.Create);
+              print("fone");
             },
           ),
           TextButton(

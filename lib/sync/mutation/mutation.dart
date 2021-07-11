@@ -1,4 +1,4 @@
-import 'package:vgbnd/sync/mutation/sync_object_local_persistence.dart';
+import 'package:vgbnd/sync/mutation/local_mutation_handler.dart';
 import 'package:vgbnd/sync/sync_object.dart';
 
 import '../constants.dart';
@@ -71,14 +71,12 @@ class MutationResult {
 }
 
 abstract class LocalMutationHandler<T> {
-  static final _empty = _EmptyMutationHandler();
-
   static LocalMutationHandler<T> empty<T>() {
-    return _empty as LocalMutationHandler<T>;
+    return _EmptyMutationHandler();
   }
 
   static LocalMutationHandler<T> basic<T extends SyncObject<T>>({List<SyncObjectMutationType>? supportedTypes}) {
-    return BaseLocalMutationHandler<T>(supportedTypes ??
+    return DefaultLocalMutationHandler<T>(supportedTypes ??
         [SyncObjectMutationType.Create, SyncObjectMutationType.Update, SyncObjectMutationType.Delete]);
   }
 
@@ -105,10 +103,8 @@ abstract class LocalMutationHandler<T> {
 abstract class RemoteMutationHandler<T> {
   // override in case not SyncObjectMutationType operations are supported
 
-  static final _empty = _EmptyMutationHandler();
-
   static RemoteMutationHandler<T> empty<T>() {
-    return _empty as RemoteMutationHandler<T>;
+    return _EmptyMutationHandler();
   }
 
   // override in case not SyncObjectMutationType operations are supported
@@ -159,5 +155,16 @@ class _EmptyMutationHandler<T> with LocalMutationHandler<T>, RemoteMutationHandl
   Future<ObjectMutationData?> createMutation(LocalRepository localRepo, T instance, SyncObjectMutationType op) {
     // TODO: implement createMutation
     throw UnimplementedError();
+  }
+}
+
+class RemoteMutationException implements Exception {
+  bool isFatal() {
+    // means that we cannot resubmit this mutation
+    return false;
+  }
+
+  MutationResult asMutationResult() {
+    return MutationResult.failure(sourceStorage: SyncStorageType.Remote);
   }
 }

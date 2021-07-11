@@ -3,7 +3,6 @@ import 'package:vgbnd/data/db.dart';
 import '../constants.dart';
 import '../schema.dart';
 import '../sync_object.dart';
-import '../value_holder.dart';
 
 mixin SyncObjectRepository{
 
@@ -21,7 +20,7 @@ mixin SyncObjectRepository{
 
   T? loadFirstObjectBy<T>(SyncSchema<T> schema, Map<String, dynamic> where) {
     List<String> wheres = [];
-    List<String> params = [];
+    List<dynamic> params = [];
 
     for (var k in where.keys) {
       wheres.add("$k=?");
@@ -33,13 +32,7 @@ mixin SyncObjectRepository{
       return null;
     }
 
-    final holder = PrimitiveValueHolder.fromMap(values);
-
-    final instance = schema.allocate();
-
-    schema.columns.forEach((col) {
-      col.assignAttribute(holder, col.name, instance);
-    });
+    final instance = schema.instantiate(values);
 
     return instance;
   }
@@ -54,7 +47,7 @@ mixin SyncObjectRepository{
     }
     getDb().insert(schema.schemaName, values);
     final rowId = getDb().lastInsertRowId;
-    if (getDb().affectedRowsCount == 1 && rowId > 0) {
+    if (getDb().affectedRowsCount == 1 && rowId != 0) {
       return loadFirstObjectBy(schema, {"rowid": rowId});
     }
     return null;

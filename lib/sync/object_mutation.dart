@@ -1,15 +1,15 @@
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart';
 import 'package:vgbnd/sync/constants.dart';
 import 'package:vgbnd/sync/schema.dart';
 import 'package:vgbnd/sync/sync_object.dart';
 import 'package:vgbnd/sync/value_holder.dart';
 
-import '../ext.dart';
 import 'mutation/sync_object_snapshot.dart';
 
 class ObjectMutationData {
-  static const TABLE_NAME = "_schema_changelog";
+  static const TABLE_NAME = "_sync_pending_remote_mutations";
 
   static const STATUS_NONE = 0, STATUS_PENDING = 1, STATUS_SUCCESS = 2, STATUS_FAILURE = 3;
 
@@ -17,20 +17,19 @@ class ObjectMutationData {
     return ObjectMutationData(
         schemaName: instance.getSchema().schemaName,
         objectId: instance.id ?? 0,
-        operation: op,
+        mutationType: op,
         status: STATUS_NONE,
-        id: uuidGenV4());
+        revNum: DateTime.now().millisecondsSinceEpoch);
   }
 
   static ObjectMutationData? fromJson(Map<String, dynamic> json) {
-
     return ObjectMutationData(
-        id: json["id"],
         schemaName: json["schema_name"],
         objectId: json["object_id"],
-        operation: SyncObjectMutationType.values[json["operation"]],
+        mutationType: SyncObjectMutationType.values[json["mutation_type"]],
         status: json["status"],
         data: json["data"],
+        revNum: json["rev_num"],
         errorMessages: json["error_messages"])
       ..snapshot = SyncObjectSnapshot.fromJson(json["snapshot"]);
   }
@@ -47,10 +46,11 @@ class ObjectMutationData {
     }
 
     final rawObjectId = c.getValue<int>("object_id");
-    final rawOp = c.getValue<int>("operation");
+    final rawOp = c.getValue<int>("mutation_type");
     final rawStatus = c.getValue<int>("status");
+    final rawRevNum = c.getValue<int>("rev_num");
 
-    if (rawObjectId == null || rawOp == null || rawStatus == null) {
+    if (rawObjectId == null || rawOp == null || rawStatus == null || rawRevNum == null) {
       return null;
     }
 
@@ -64,7 +64,7 @@ class ObjectMutationData {
     }
 
     final rec = ObjectMutationData(
-        id: rawUUid, schemaName: rawSchemaName, objectId: rawObjectId, operation: op, status: rawStatus);
+        schemaName: rawSchemaName, objectId: rawObjectId, mutationType: op, status: rawStatus, revNum: rawRevNum);
 
     final rawData = c.getValue<String>("data");
     if (rawData != null) {
@@ -80,60 +80,57 @@ class ObjectMutationData {
       } catch (e) {}
     }
 
-    rec.createdAt = c.getValue<DateTime>("created_at");
-
     return rec;
   }
 
   ObjectMutationData(
-      {required this.id,
-      required this.schemaName,
+      {required this.schemaName,
       required this.objectId,
-      required this.operation,
+      required this.mutationType,
       required this.status,
+      required this.revNum,
       this.data,
-      this.errorMessages,
-      this.createdAt});
+      this.errorMessages});
 
-  String id;
   SchemaName schemaName;
   int objectId;
-  SyncObjectMutationType operation;
+  SyncObjectMutationType mutationType;
   int status;
-  DateTime? createdAt;
+  int revNum;
   Map<String, dynamic>? data;
 
   Map<String, dynamic>? errorMessages;
 
   SyncObjectSnapshot? snapshot; // what was the data before this changelog was created
 
+  String getSignature() {
+    final str = "$schemaName-$objectId-$revNum";
+    return md5.convert(utf8.encode(str)).toString();
+  }
+
   Map<String, dynamic> toDbValues() {
     final values = {
-      "id": id,
       "schema_name": schemaName,
       "object_id": objectId,
-      "operation": operation.index,
-      "status": status,
+      "mutation_type": mutationType.index,
       "data": jsonEncode(data),
       "error_messages": jsonEncode(errorMessages),
+      "status": status,
+      "rev_num": this.revNum,
     };
-
-    if (createdAt != null) {
-      values["created_at"] = createdAt!.toIso8601String();
-    }
 
     return values;
   }
 
   Map<String, dynamic> toJson() {
     return {
-      "id": id,
       "schema_name": schemaName,
       "object_id": objectId,
-      "operation": operation.index,
-      "status": status,
+      "mutation_type": mutationType.index,
       "data": data,
       "error_messages": errorMessages,
+      "status": status,
+      "rev_num": this.revNum,
       "snapshot": this.snapshot?.toJson(),
     };
   }

@@ -6,7 +6,8 @@ import 'package:vgbnd/sync/sync_object.dart';
 
 import '../constants.dart';
 import '../value_holder.dart';
-import 'base.dart';
+import 'mutation.dart';
+
 
 mixin DefaultLocalMutationHandlerMixin<T extends SyncObject<T>> {
   ensureHasIdSet(LocalRepository local, T instance) {
@@ -62,6 +63,8 @@ mixin DefaultLocalMutationHandlerMixin<T extends SyncObject<T>> {
     final recChangelog = ObjectMutationData.fromModel(syncObj, op);
     recChangelog.data = data;
     recChangelog.snapshot = snapshot;
+
+    return recChangelog;
   }
 
   MutationResult applyLocalMutationForObject(ObjectMutationData mutData, LocalRepository localRepo) {
@@ -74,7 +77,7 @@ mixin DefaultLocalMutationHandlerMixin<T extends SyncObject<T>> {
 
     SyncObject? rec;
 
-    switch (mutData.operation) {
+    switch (mutData.mutationType) {
       case SyncObjectMutationType.Create:
         rec = localRepo.insertObject(schema, mutData.data!);
         break;
@@ -94,7 +97,7 @@ mixin DefaultLocalMutationHandlerMixin<T extends SyncObject<T>> {
     }
 
     if (rec != null) {
-      mutResult.add(mutData.operation, rec);
+      mutResult.add(mutData.mutationType, rec);
       mutResult.setSuccessful(true);
     } else {
       mutResult.setSuccessful(false);
@@ -103,11 +106,11 @@ mixin DefaultLocalMutationHandlerMixin<T extends SyncObject<T>> {
   }
 }
 
-class BaseLocalMutationHandler<T extends SyncObject<T>> extends LocalMutationHandler<T>
+class DefaultLocalMutationHandler<T extends SyncObject<T>> extends LocalMutationHandler<T>
     with DefaultLocalMutationHandlerMixin<T> {
   final List<SyncObjectMutationType> _supportedMutationTypes;
 
-  BaseLocalMutationHandler(this._supportedMutationTypes);
+  DefaultLocalMutationHandler(this._supportedMutationTypes);
 
   @override
   bool canHandleMutationType(SyncObjectMutationType t) {
