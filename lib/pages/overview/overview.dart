@@ -9,36 +9,90 @@ import 'package:vgbnd/sync/constants.dart';
 import 'package:vgbnd/sync/sync.dart';
 import 'package:vgbnd/widgets/numeric_stepper_input.dart';
 
-class OverviewPage extends StatelessWidget {
-  bool _listening = false;
+class OverviewPageNew extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      itemCount: 1,
+      itemBuilder: (context, index) {
+        /* return ListTile(
+          title: Text('aaaa'),
 
-  OverviewPage() : super() {
-    print("aaaaaa");
-    print("aaaaaa");
+        );*/
+        return Expanded(
+            child: Center(
+              child: CircularProgressIndicator(),
+            ));
+        return Center(
+          child: CircularProgressIndicator(),
+        );
+      },
+    );
+  }
+}
 
-    () async {
-      if (_listening) {
-        return;
+abstract class DataProvider<T> {
+  static const int STATE_NONE = 0,
+      STATE_PROVISIONING = 1,
+      STATE_PROVISIONED = 2,
+      STATE_PROVISION_ERROR = 3;
+
+  final _dataChanged = StreamController<DataProvider<T>>.broadcast();
+  int _currentState = STATE_NONE;
+
+  dispose() {
+    _dataChanged.close();
+  }
+
+  bool _setState(int newState) {
+    if (newState != _currentState) {
+      _currentState = newState;
+      notifyChanged();
+      return true;
+    }
+    return false;
+  }
+
+  int get currentState {
+    return _currentState;
+  }
+
+  T getItemAt(int position);
+
+  int getLoadedItemCount();
+
+  notifyChanged() {
+    _dataChanged.add(this);
+  }
+
+  StreamSubscription<DataProvider<T>> onStateChanged(void onData(DataProvider<T> source)?,
+      {Function? onError, void onDone()?, bool? cancelOnError}) {
+    var prevState = _currentState;
+    return _dataChanged.stream.listen((event) {
+      if (event.currentState != prevState) {
+        prevState = event.currentState;
+        onData?.call(this);
       }
-      _listening = true;
-      final dbPath = "/data/user/0/com.dtg.vagabond.vgbnd/app_flutter/databases/data_649.db";
-      final db = await DbConn.open(dbPath, runMigrations: false);
+    }, cancelOnError: cancelOnError, onDone: onDone, onError: onError)
+  }
 
-      /*final values = db.selectOne("select * from columns limit 1");
-      final int id = db.selectValue("select id from locations limit 1;");
-      final strId = db.selectValue<String>("select id from locations limit 1;");*/
-      final values = db.selectOne("select * from columns where id=615586");
-      final coil = Coil.schema.instantiate(values);
-      final v = coil.dumpValues();
-      print("xxxxx");
 
-      final stream = await SyncEngine.forAccount(UserAccount.current).watchSchemas(SyncEngine.SYNC_SCHEMAS);
-      StreamSubscription? subscription;
-      subscription = stream.listen((version) {
-        print("SCHEMA CHANGED $version");
-        //subscription?.cancel();
-      });
-    }();
+}
+
+class OverviewPage extends StatelessWidget {
+  OverviewPage() {
+    _doStuff();
+  }
+
+  _doStuff() async {
+    final t = DateTime
+        .now()
+        .millisecondsSinceEpoch;
+    final cur = await SyncEngine.current().fetchCursor("select * from columns where location_id=?", args: [225941]);
+    print("xxxx ${DateTime
+        .now()
+        .millisecondsSinceEpoch - t}");
+    print("done");
   }
 
   @override

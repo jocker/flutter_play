@@ -160,9 +160,9 @@ class ApiRequestBuilder {
   UserAccount? _userAccount;
   Map<String, String> _headers = {"Accept": "application/json", "Content-Type": "application/json"};
 
-  //static final _baseApiUri = 'https://apim.vagabondvending.com/api/public';
+  static final _baseApiUri = 'https://apim.vagabondvending.com/api/public';
 
-  static final _baseApiUri = 'http://192.168.100.152:3000/api/public';
+  //static final _baseApiUri = 'http://192.168.100.152:3000/api/public';
 
   static Uri getUri(String path, [Map<String, String>? qsParams]) {
     if (path.startsWith("/")) {
@@ -406,8 +406,8 @@ class RemoteSchemaChangelogEntry {
   bool putSchemaValues(List<Object?> dest) {
     final s = _owner._spec();
     final row = this.rawValues;
-    for (var idx = 0; idx < s.schemaAttributeNames.length; idx += 1) {
-      final value = row[idx];
+    for (var idx = 0; idx < s.remoteValueIndices.length; idx += 1) {
+      final value = row[s.remoteValueIndices[idx]];
       if (idx < dest.length) {
         dest[idx] = value;
       } else {

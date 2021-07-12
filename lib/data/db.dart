@@ -145,7 +145,7 @@ class DbConn {
     return _db.lastInsertRowId;
   }
 
-  Cursor select(String sql, [List<Object?> parameters = const []]) {
+  MatrixCursor select(String sql, [List<Object?> parameters = const []]) {
     final res = _db.select(sql, parameters);
 
     final columnsMap = HashMap<String, int>();

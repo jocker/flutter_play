@@ -9,6 +9,10 @@ class MatrixCursor extends Cursor {
 
   final Map<String, int> _columnsMap;
 
+  static MatrixCursor fromJson(Map<String, dynamic> json) {
+    return MatrixCursor(json["columns_map"], json["rows"]);
+  }
+
   List<String> get columnNames {
     if (_columnNames == null) {
       final cols = List.of(_columnsMap.keys);
@@ -38,9 +42,9 @@ class MatrixCursor extends Cursor {
     return this.move(-1);
   }
 
-  bool moveToPosition(int index) {
-    if (index >= 0 && index < this._rows.length) {
-      this._position = index;
+  bool moveToPosition(int pos) {
+    if (pos >= 0 && pos < this._rows.length) {
+      this._position = pos;
       return true;
     }
     return false;
@@ -80,4 +84,11 @@ class MatrixCursor extends Cursor {
 
   @override
   int get dataVersion => 0;
+
+  Map<String, dynamic> toJson() {
+    return {
+      "columns_map": _columnsMap,
+      "rows": _rows,
+    };
+  }
 }

@@ -8,7 +8,9 @@ import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:vgbnd/api/api.dart';
 import 'package:vgbnd/bkg/task_runner.dart';
+import 'package:vgbnd/data/cursor.dart';
 import 'package:vgbnd/data/db.dart';
+import 'package:vgbnd/data/matrix_cursor.dart';
 import 'package:vgbnd/models/coil.dart';
 import 'package:vgbnd/models/location.dart';
 import 'package:vgbnd/models/machine_column_sales.dart';
@@ -29,7 +31,8 @@ const _MESSAGE_TYPE_PULL_CHANGES = "pull_changes",
     _MESSAGE_TYPE_INVALIDATE_CACHE = "invalidate_cache",
     _MESSAGE_TYPE_WATCH_SCHEMA_CHANGED = "watch_schema_changed",
     _MESSAGE_TYPE_SET_CONN_INFO = "set_conn_info",
-    _MESSAGE_TYPE_MUTATE_SYNC_OBJECT = "mutate_sync_object";
+    _MESSAGE_TYPE_MUTATE_SYNC_OBJECT = "mutate_sync_object",
+    _MESSAGE_TYPE_FETCH_CURSOR = "fetch_cursor";
 
 class SyncEngineIsolate {
   late final LocalRepository _localRepository;
@@ -97,11 +100,7 @@ class SyncEngineIsolate {
       unsynced.addAll(SyncEngine.SYNC_SCHEMAS.map((e) => SchemaVersion(e, 0)));
     }
 
-    unsynced = unsynced.where((element) =>
-    SyncSchema
-        .byName(element.schemaName)
-        ?.remoteReadable ?? false).toList();
-
+    unsynced = unsynced.where((element) => SyncSchema.byName(element.schemaName)?.remoteReadable ?? false).toList();
     final unsyncedResp = await _remoteRepository.changes(unsynced, includeDeleted: includeDeleted);
     if (!unsyncedResp.isSuccess) {
       return false;
@@ -162,12 +161,12 @@ class SyncEngineIsolate {
         MutationResult? remoteResult;
         try {
           remoteResult =
-          await schema.remoteMutationHandler.submitMutation(mutData, _localRepository, _remoteRepository);
+              await schema.remoteMutationHandler.submitMutation(mutData, _localRepository, _remoteRepository);
         } on RemoteMutationException catch (e) {
           return e.asMutationResult();
         }
         final res =
-        await schema.remoteMutationHandler.applyRemoteMutationResult(mutData, remoteResult, _localRepository);
+            await schema.remoteMutationHandler.applyRemoteMutationResult(mutData, remoteResult, _localRepository);
         _handleMutationResult(res);
         return res;
       } else {
@@ -196,20 +195,22 @@ class SyncEngineIsolate {
             tx.execute(
                 "update ${schema.tableName} set ${idCol.name}=? where ${idCol.name} =? ", [repl.newId, repl.prevId]);
 
-            tx.insert("_sync_object_resolved_ids", {
-              "schema_name": schema.schemaName,
-              "local_id": repl.prevId,
-              "remote_id": repl.newId,
-            }, onConflict: OnConflictDo.Ignore);
-
+            tx.insert(
+                "_sync_object_resolved_ids",
+                {
+                  "schema_name": schema.schemaName,
+                  "local_id": repl.prevId,
+                  "remote_id": repl.newId,
+                },
+                onConflict: OnConflictDo.Ignore);
           }
         }
 
         final created = mutationRes.created;
         if (created != null) {
           for (final rec in created) {
-            _localRepository.insertValues(
-                rec.getSchema(), rec.dumpValues().toMap(), db: tx, onConflict: OnConflictDo.Replace);
+            _localRepository.insertValues(rec.getSchema(), rec.dumpValues().toMap(),
+                db: tx, onConflict: OnConflictDo.Replace);
           }
         }
 
@@ -262,8 +263,13 @@ class SyncEngineIsolate {
         return;
       case _MESSAGE_TYPE_MUTATE_SYNC_OBJECT:
         final msg = message.args as MutateSyncObjectMessage;
-
         return await handleMutationRequest(msg);
+      case _MESSAGE_TYPE_FETCH_CURSOR:
+        final msg = message.args as FetchCursorMessage;
+
+        final cursor = this._localRepository.dbConn.select(msg.sql, msg.args);
+        return cursor.toJson();
+
       default:
         throw Exception("SyncEngineBackEnd doesn't know how to handle ${message.type}");
     }
@@ -358,7 +364,7 @@ class SyncEngine extends TaskRunner {
   Future<Stream<int>> watchSchemas(List<String> schemaNames) async {
     final p = ReceivePort();
     WatchSchemasReply reply =
-    await this.exec(_MESSAGE_TYPE_WATCH_SCHEMA_CHANGED, args: WatchSchemasMessage(p.sendPort, schemaNames));
+        await this.exec(_MESSAGE_TYPE_WATCH_SCHEMA_CHANGED, args: WatchSchemasMessage(p.sendPort, schemaNames));
 
     StreamController<int> controller = StreamController<int>(
       onCancel: () {
@@ -376,6 +382,12 @@ class SyncEngine extends TaskRunner {
 
   Future<MutationResult> mutateObject(SyncObject obj, SyncObjectMutationType op) async {
     return await this.exec(_MESSAGE_TYPE_MUTATE_SYNC_OBJECT, args: MutateSyncObjectMessage.forObject(obj, op));
+  }
+
+  Future<Cursor> fetchCursor(String sql, {List<Object>? args}) async {
+    final Map<String, dynamic> cursorJson =
+        await this.exec(_MESSAGE_TYPE_FETCH_CURSOR, args: FetchCursorMessage(sql, args ?? List.empty()));
+    return MatrixCursor.fromJson(cursorJson);
   }
 
   Future<String> getLocalDatabasePath() async {
@@ -420,9 +432,7 @@ class MutateSyncObjectMessage {
 
   static MutateSyncObjectMessage forObject(SyncObject object, SyncObjectMutationType op) {
     return MutateSyncObjectMessage(
-      object
-          .getSchema()
-          .schemaName,
+      object.getSchema().schemaName,
       op,
       object.dumpValues().toMap(),
     );
@@ -431,4 +441,18 @@ class MutateSyncObjectMessage {
   SyncObject? getObject() {
     return SyncSchema.byName(this.schemaName)?.instantiate(this.syncObjectAttrs);
   }
+}
+
+class FetchCursorMessage {
+  final String sql;
+  final List<Object?> args;
+
+  FetchCursorMessage(this.sql, this.args);
+}
+
+class FetchCursorReply {
+  List<String> headers;
+  List<List<Object?>> rows;
+
+  FetchCursorReply(this.headers, this.rows);
 }
