@@ -4,7 +4,7 @@ import 'package:vgbnd/sync/repository/_local_repository.dart';
 import 'package:vgbnd/sync/schema.dart';
 import 'package:vgbnd/sync/sync_object.dart';
 
-import '../constants.dart';
+import '../../constants/constants.dart';
 import '../value_holder.dart';
 import 'mutation.dart';
 

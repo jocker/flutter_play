@@ -1,6 +1,10 @@
-abstract class Cursor extends Iterable<Cursor> {
+abstract class Cursor {
   int get count;
+
   int get dataVersion;
+
+  int get position;
+
   Iterable<String> get columnNames;
 
   bool moveToFirst();
@@ -17,8 +21,16 @@ abstract class Cursor extends Iterable<Cursor> {
 
   T? getValue<T>({int? columnIndex, String? columnName});
 
+  Iterable<Cursor> asIterable() => _CursorIterable(this);
+}
+
+class _CursorIterable extends Iterable<Cursor> {
+  final Cursor _cursor;
+
+  _CursorIterable(this._cursor);
+
   @override
-  Iterator<Cursor> get iterator => _CursorIterator(this);
+  Iterator<Cursor> get iterator => _CursorIterator(_cursor);
 }
 
 class _CursorIterator extends Iterator<Cursor> {

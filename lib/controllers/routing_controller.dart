@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:vgbnd/controllers/side_nav_controller.dart';
+import 'package:vgbnd/controllers/app_section_controller.dart';
 
 class RoutingController extends GetxController {
   final GlobalKey<NavigatorState> routingKey = GlobalKey();
@@ -13,8 +13,8 @@ class RoutingController extends GetxController {
     Get.put(RoutingController());
   }
 
-  Future<dynamic> navigateTo(AppPageRoute route) {
-    return routingKey.currentState!.pushNamed(route);
+  Future<dynamic> navigateTo(AppSection route) {
+    return routingKey.currentState!.pushNamed(route.key);
   }
 
   bool goBack() {

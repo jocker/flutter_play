@@ -1,31 +1,85 @@
 import 'package:flutter/material.dart';
-import 'package:vgbnd/widgets/large_screen.dart';
+import 'package:get/get.dart';
+import 'package:vgbnd/api/api.dart';
+import 'package:vgbnd/controllers/app_section_controller.dart';
 import 'package:vgbnd/widgets/small_screen.dart';
 import 'package:vgbnd/widgets/top_nav.dart';
-
-import 'helpers/responsiveness.dart';
 
 class SiteLayout extends StatelessWidget {
   final GlobalKey<ScaffoldState> scaffoldKey = GlobalKey();
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final user = UserAccount.current;
     return Scaffold(
         key: scaffoldKey,
         appBar: buildTopNav(context, scaffoldKey),
-        drawer: Drawer(),
-        body: ResponsiveWidget(
-          widgetFactory: (size) {
-            switch (size) {
-              case ScreenSize.Small:
-                return SmallScreen();
-              case ScreenSize.Large:
-              case ScreenSize.Medium:
-              case ScreenSize.Custom:
-              default:
-                return LargeScreen();
-            }
-          },
-        ));
+        drawer: Drawer(
+            child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+                color: theme.primaryColor,
+                padding: EdgeInsets.all(16),
+                alignment: Alignment.centerLeft,
+                child: SafeArea(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    children: [
+                      Text(
+                        user.displayName,
+                        textAlign: TextAlign.left,
+                        style: TextStyle(
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        user.email,
+                        textAlign: TextAlign.right,
+                        style: TextStyle(color: Colors.white),
+                      )
+                    ],
+                  ),
+                )),
+            Column(
+              children: AppSection.ALL.map((appSection) => _makeSizeMenuItem(context, appSection)).toList(),
+            ),
+            Divider(),
+            MaterialButton(
+                child: Text("Log out", style: TextStyle(color: theme.primaryColor, fontSize: 16)), onPressed: () {})
+          ],
+        )),
+        body: SmallScreen());
   }
+}
+
+Widget _makeSizeMenuItem(BuildContext context, AppSection appSection) {
+  AppSectionController controller = Get.find();
+
+  double size = 16;
+  final theme = Theme.of(context);
+  var color = theme.primaryColor;
+
+  if (controller.isRouteActive(appSection)) {
+    size = 30;
+  }
+
+  return InkWell(
+      onTap: () {
+        controller.onItemTap(appSection);
+      },
+      child: Row(
+        children: [
+          SizedBox(
+            width: 48,
+            height: 48,
+            child: Icon(appSection.iconData, size: size, color: color),
+          ),
+          Text(
+            appSection.displayName,
+            style: TextStyle(fontSize: 16, color: theme.primaryColor),
+          )
+        ],
+      ));
 }

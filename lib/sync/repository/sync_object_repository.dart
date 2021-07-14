@@ -1,6 +1,6 @@
 import 'package:vgbnd/data/db.dart';
 
-import '../constants.dart';
+import '../../constants/constants.dart';
 import '../schema.dart';
 import '../sync_object.dart';
 

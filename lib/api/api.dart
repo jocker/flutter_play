@@ -88,8 +88,8 @@ class Api {
       queryParams["since[${version.schemaName}]"] = version.revNum.toString();
     }
 
-    return _makeRequestForChangeset(HttpMethod.GET, "collections/import", queryParams: queryParams, includeDeleted: includeDeleted);
-
+    return _makeRequestForChangeset(HttpMethod.GET, "collections/import",
+        queryParams: queryParams, includeDeleted: includeDeleted);
   }
 
   Future<Result<String>> updateSchemaObject(String schemaName, int id, Map<String, dynamic> values) async {
@@ -110,7 +110,6 @@ class Api {
   Future<Result<List<RemoteSchemaChangelog>>> deleteSchemaObject(String schemaName, int objectId) async {
     return await _makeRequestForChangeset(HttpMethod.DELETE, "collections/$schemaName/$objectId");
   }
-
 
   Future<Result<List<RemoteSchemaChangelog>>> _makeRequestForChangeset(HttpMethod httpMethod, String urlPath,
       {Object? payload, bool? includeDeleted, Map<String, String>? queryParams}) async {
@@ -147,7 +146,6 @@ class Api {
 
     return changesetResp;
   }
-
 }
 
 enum HttpMethod { GET, POST, PUT, DELETE }
@@ -248,11 +246,10 @@ class ApiRequestBuilder {
 }
 
 class RemoteSchemaChangelog {
-  
-  static empty(String schemaName){
+  static empty(String schemaName) {
     return RemoteSchemaChangelog(schemaName, [], []);
   }
-  
+
   static fromResponseJson(String schemaName, Map<String, dynamic> json) {
     List<String> columns = (json['headers'] as List<dynamic>).cast<String>();
     final data = (json['data'] as List<dynamic>);
@@ -436,23 +433,27 @@ class RemoteSchemaChangelogEntry {
 }
 
 class UserAccount {
-  int id;
-  String email;
-  String password;
+  final int id;
+  final String email;
+  final String password;
+  final String displayName;
 
-  static UserAccount current = UserAccount(id: 649, email: "bonnie@vagabondvending.com", password: "bonnierocks");
+  static UserAccount current =
+      UserAccount(id: 649, email: "bonnie@vagabondvending.com", password: "bonnierocks", displayName: "Tonnie Brush");
 
-  UserAccount({required this.id, required this.email, required this.password});
+  UserAccount({required this.id, required this.email, required this.password, required this.displayName});
 
   UserAccount.fromJson(Map<String, dynamic> json)
       : id = json['id'],
         email = json['email'],
-        password = json['password'];
+        password = json['password'],
+        displayName = json['display_name'];
 
   Map<String, dynamic> toJson() => {
         "id": id,
         "email": email,
         "password": password,
+        "display_name": displayName,
       };
 
   sign(ApiRequestBuilder req) {

@@ -1,7 +1,8 @@
+import 'dart:math';
+import 'dart:ui';
+
 import 'package:uuid/uuid.dart';
 import 'package:uuid/uuid_util.dart';
-
-
 
 T? readPrimitive<T>(dynamic v) {
   if (v is T) {
@@ -13,15 +14,15 @@ T? readPrimitive<T>(dynamic v) {
       return DateTime.tryParse(raw) as T?;
     }
   }
-  if(T == int){
+  if (T == int) {
     var raw = readPrimitive<String>(v);
-    if(raw != null){
+    if (raw != null) {
       return int.tryParse(raw) as T?;
     }
   }
-  if(T == double){
+  if (T == double) {
     var raw = readPrimitive<String>(v);
-    if(raw != null){
+    if (raw != null) {
       return double.tryParse(raw) as T?;
     }
   }
@@ -46,7 +47,6 @@ String uuidGenV4() {
   return _uuid.v4();
 }
 
-
 extension FirstWhereOrNullExtension<T> on Iterable<T> {
   T? firstWhereOrNull(bool Function(T) test) {
     for (T element in this) {
@@ -54,4 +54,8 @@ extension FirstWhereOrNullExtension<T> on Iterable<T> {
     }
     return null;
   }
+}
+
+Color generateRandomColor() {
+  return Color((Random().nextDouble() * 0xFFFFFF).toInt()).withOpacity(1.0);
 }

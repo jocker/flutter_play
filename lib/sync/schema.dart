@@ -1,4 +1,5 @@
 import 'package:vgbnd/api/api.dart';
+import 'package:vgbnd/constants/constants.dart';
 import 'package:vgbnd/data/db.dart';
 import 'package:vgbnd/ext.dart';
 import 'package:vgbnd/models/coil.dart';
@@ -6,7 +7,6 @@ import 'package:vgbnd/models/location.dart';
 import 'package:vgbnd/models/machine_column_sales.dart';
 import 'package:vgbnd/models/product.dart';
 import 'package:vgbnd/models/productlocation.dart';
-import 'package:vgbnd/sync/constants.dart';
 import 'package:vgbnd/sync/sync_object.dart';
 import 'package:vgbnd/sync/value_holder.dart';
 

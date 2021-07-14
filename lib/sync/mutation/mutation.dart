@@ -1,7 +1,7 @@
 import 'package:vgbnd/sync/mutation/local_mutation_handler.dart';
 import 'package:vgbnd/sync/sync_object.dart';
 
-import '../constants.dart';
+import '../../constants/constants.dart';
 import '../object_mutation.dart';
 import '../repository/_local_repository.dart';
 import '../repository/_remote_repository.dart';

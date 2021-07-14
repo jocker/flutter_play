@@ -19,7 +19,7 @@ mixin SchemaInfoRepository{
       final cursor = getDb().select(
           "select schema_name,local_revision_num,id_counter from ${LocalSchemaInfo.TABLE_NAME} where schema_name in ${DbConn.sqlIn(SyncEngine.SYNC_SCHEMAS)}");
 
-      cursor.map((c) {
+      cursor.asIterable().map((c) {
         String schemaName = c.getValue(columnName: "schema_name");
         int revNum = c.getValue(columnName: "local_revision_num");
         int idCounter = c.getValue(columnName: "id_counter");

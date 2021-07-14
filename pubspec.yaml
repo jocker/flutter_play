@@ -35,6 +35,7 @@ dependencies:
   stream_transform: ^2.0.0
   connectivity_plus: ^1.0.4
   uuid: ^3.0.4
+  dynamic_themes: ^1.1.0
 
 dev_dependencies:
   flutter_test:

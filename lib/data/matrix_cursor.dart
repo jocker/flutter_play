@@ -3,7 +3,7 @@ import 'package:vgbnd/ext.dart';
 import 'cursor.dart';
 
 class MatrixCursor extends Cursor {
-  int _position = -1;
+  int _cursorPos = -1;
   List<String>? _columnNames;
   final List<List<Object?>> _rows;
 
@@ -23,7 +23,7 @@ class MatrixCursor extends Cursor {
   }
 
   MatrixCursor(this._columnsMap, this._rows) {
-    _position = -1;
+    _cursorPos = -1;
   }
 
   bool moveToFirst() {
@@ -43,8 +43,11 @@ class MatrixCursor extends Cursor {
   }
 
   bool moveToPosition(int pos) {
+    if (pos == this._cursorPos) {
+      return true;
+    }
     if (pos >= 0 && pos < this._rows.length) {
-      this._position = pos;
+      this._cursorPos = pos;
       return true;
     }
     return false;
@@ -55,9 +58,9 @@ class MatrixCursor extends Cursor {
   }
 
   bool move(int offset) {
-    int idx = this._position + offset;
+    int idx = this._cursorPos + offset;
     if (idx >= 0 && idx < this.count) {
-      this._position = idx;
+      this._cursorPos = idx;
       return true;
     }
     return false;
@@ -69,8 +72,8 @@ class MatrixCursor extends Cursor {
       return null;
     }
 
-    if (this._position > -1 && this._position < this._rows.length) {
-      final raw = this._rows[this._position][valueIndex];
+    if (this._cursorPos > -1 && this._cursorPos < this._rows.length) {
+      final raw = this._rows[this._cursorPos][valueIndex];
       return readPrimitive(raw);
     }
     return null;
@@ -79,7 +82,7 @@ class MatrixCursor extends Cursor {
   void dispose() {
     _rows.clear();
     _columnsMap.clear();
-    _position = -1;
+    _cursorPos = -1;
   }
 
   @override
@@ -91,4 +94,8 @@ class MatrixCursor extends Cursor {
       "rows": _rows,
     };
   }
+
+  @override
+  // TODO: implement position
+  int get position => _cursorPos;
 }
