@@ -26,6 +26,8 @@ class SqlSelectQueryBuilder {
   List<_SqlStringWithArgs>? _wheres;
   List<_SqlStringWithArgs>? _joins;
   List<_SqlStringWithArgs>? _orders;
+  int? _limit;
+  int? _offset;
 
   field(String selector, String alias) {
     _fieldsMap[alias] = selector;
@@ -41,6 +43,14 @@ class SqlSelectQueryBuilder {
 
   order(String sql, [List<Object>? args]) {
     (_orders ??= []).add(_SqlStringWithArgs(sql, args));
+  }
+
+  limit(int limit) {
+    _limit = limit;
+  }
+
+  offset(int offset) {
+    _offset = offset;
   }
 
   SqlSelectQueryBuilder clone() {
@@ -64,7 +74,6 @@ class SqlSelectQueryBuilder {
     buf..write(" from ")..write(_from);
     final List<Object> args = [];
 
-
     final joins = _joins ?? List.empty(growable: false);
     for (final join in joins) {
       buf.write(" ");
@@ -84,8 +93,6 @@ class SqlSelectQueryBuilder {
 
       where._writeTo(buf, args);
     }
-
-
 
     final orders = _orders ?? List.empty(growable: false);
     var isFirstOrder = true;

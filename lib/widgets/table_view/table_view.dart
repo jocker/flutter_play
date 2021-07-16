@@ -25,6 +25,10 @@ abstract class TableViewDataSource extends ChangeNotifier {
     return _currentVersion;
   }
 
+  int get loadedCount{
+    return _cursor.co
+  }
+
   _initCursorIfNeeded() async {
     if (_setState(STATE_LOADING, prevStates: [STATE_NONE])) {
       try {
@@ -89,6 +93,12 @@ abstract class TableViewDataSource extends ChangeNotifier {
 
 class TableViewController extends ChangeNotifier {
   static const int ITEM_VIEW_TYPE_DATASOURCE_ITEM = 0, ITEM_VIEW_TYPE_GROUP_HEADER = 1, ITEM_VIEW_TYPE_FAB_SPACER = 2;
+
+  TableViewController({bool? addFabSpacer}) {
+    if (addFabSpacer == true) {
+      this.appendViewTypes.add(ITEM_VIEW_TYPE_FAB_SPACER);
+    }
+  }
 
   final List<int> appendViewTypes = [];
   final List<int> prependViewTypes = [];
@@ -282,6 +292,7 @@ class TableViewController extends ChangeNotifier {
 typedef Widget? BuildBodyRowFunc(BuildContext context, TableViewController controller, int viewType, int renderIndex);
 typedef Widget? BuildBodyCellFunc(BuildContext context, TableColumn col, TableViewController controller, int index);
 typedef Widget? BuildHeaderCellFunc(BuildContext context, TableColumn col, TableViewController controller);
+typedef TableRowClickCallback(TableViewController controller, int renderIndex);
 
 class TableColumn {
   final String key;
@@ -407,6 +418,7 @@ class TableView extends StatefulWidget {
   final TableViewDataSource dataSource;
   BuildBodyRowFunc? buildBodyRowFunc;
   final String? emptyText;
+  TableRowClickCallback? onRowClick;
 
   TableView(
       {Key? key,
@@ -416,7 +428,8 @@ class TableView extends StatefulWidget {
       TableViewController? controller,
       this.buildBodyRowFunc,
       this.emptyText,
-      required this.dataSource})
+      required this.dataSource,
+      this.onRowClick})
       : super(key: key) {
     this.headerDividerWidth = headerDividerWidth ?? 2;
     this.controller = controller ?? TableViewController();
@@ -430,7 +443,7 @@ class TableView extends StatefulWidget {
 }
 
 class _TableViewState extends State<TableView> {
-  final columnWidths = HashMap<TableColumn, double>();
+  final List<double> _columnWidths = [];
   double columnWidthsSignature = 0;
 
   @override
@@ -527,6 +540,9 @@ class _TableViewState extends State<TableView> {
 
     double availableWidth = constraints.maxWidth - (this.widget.columns.length - 1) * this.widget.headerDividerWidth;
     int totalFlex = 0;
+
+    final columnWidths = HashMap<TableColumn, double>();
+
     columnWidths.clear();
     final List<TableColumn> flexCols = [];
 
@@ -548,6 +564,9 @@ class _TableViewState extends State<TableView> {
         columnWidths[col] = flexUnitSize * col.flex;
       }
     }
+
+    _columnWidths.clear();
+    _columnWidths.addAll(this.widget.columns.map((col) => columnWidths[col]!));
   }
 
   List<Widget> _buildHeaders(BuildContext ctx) {
@@ -560,7 +579,7 @@ class _TableViewState extends State<TableView> {
 
       final colWidget = Container(
         alignment: col.contentAlignment ?? Alignment.centerLeft,
-        width: columnWidths[col],
+        width: _getColumnWidth(col),
         padding: EdgeInsets.symmetric(horizontal: 8),
         child: col._buildHeaderCell(context, col, this.widget.controller),
       );
@@ -578,6 +597,14 @@ class _TableViewState extends State<TableView> {
     }
 
     return widgets;
+  }
+
+  double _getColumnWidth(TableColumn col) {
+    final idx = this.widget.columns.indexOf(col);
+    if (idx < 0) {
+      return 0;
+    }
+    return _columnWidths[idx];
   }
 
   _buildBodyRow(BuildContext context, int renderIndex) {
@@ -602,7 +629,7 @@ class _TableViewState extends State<TableView> {
         for (var i = 0; i < columns.length; i++) {
           final col = columns[i];
           double leftMargin = 0;
-          double width = columnWidths[col]!;
+          double width = _getColumnWidth(col);
           if (i > 0) {
             leftMargin += this.widget.headerDividerWidth;
           }
@@ -629,6 +656,17 @@ class _TableViewState extends State<TableView> {
             children: widgets,
           ),
         );
+
+        final onRowClick = this.widget.onRowClick;
+        if (onRowClick != null) {
+          return InkWell(
+            child: bodyRow,
+            onTap: () {
+              onRowClick(this.widget.controller, renderIndex);
+            },
+          );
+        }
+
         return bodyRow;
 
       default:

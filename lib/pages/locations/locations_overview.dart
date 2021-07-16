@@ -2,8 +2,8 @@ import 'dart:collection';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:vgbnd/pages/overview/overview.dart';
 
+import 'locations_pack_tab.dart';
 import 'locations_view_tab.dart';
 
 typedef Widget BuildTabFunc(BuildContext context);
@@ -96,6 +96,7 @@ class _TabPanelState extends State<TabPanel> with SingleTickerProviderStateMixin
 }
 
 class LocationsOverview extends StatelessWidget {
+  final locationId = 231265;
   @override
   Widget build(BuildContext context) {
     return TabPanel(
@@ -104,14 +105,14 @@ class LocationsOverview extends StatelessWidget {
           key: "view",
           label: "VIEW",
           build: (context) {
-            return LocationViewTab();
+            return LocationViewTab(locationId);
           },
         ),
         TabConfig(
           key: "pack",
           label: "PACK",
           build: (context) {
-            return OverviewPage();
+            return LocationsPackTab(locationId);
           },
         ),
         TabConfig(

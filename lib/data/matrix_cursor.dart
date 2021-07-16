@@ -96,6 +96,5 @@ class MatrixCursor extends Cursor {
   }
 
   @override
-  // TODO: implement position
   int get position => _cursorPos;
 }
