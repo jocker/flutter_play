@@ -62,6 +62,9 @@ class SqlSelectQueryBuilder {
     c._wheres = _wheres?.toList(growable: true);
     c._joins = _joins?.toList(growable: true);
     c._fieldsMap.addAll(_fieldsMap);
+    c._orders = _orders?.toList(growable: true);
+    c._limit = _limit;
+    c._offset = _offset;
 
     return c;
   }
@@ -109,6 +112,12 @@ class SqlSelectQueryBuilder {
       }
 
       order._writeTo(buf, args);
+    }
+
+    final limit = _limit;
+    final offset = _offset;
+    if(limit != null && offset != null){
+      buf.write(" limit $limit offset $offset");
     }
 
     return SqlSelectQuery(buf.toString(), args: args);

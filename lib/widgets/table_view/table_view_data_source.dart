@@ -14,7 +14,7 @@ class SqlQueryDataSource extends TableViewDataSource<SqlRow> {
 
   SqlQueryDataSource(this._baseQuery,
       {Map<String, String>? fieldSelectors, String? textSearchSelector, int? pageSize}) {
-    this._pageSize = pageSize ?? 50;
+    this._pageSize = pageSize ?? 5;
     this._fieldSelectors = fieldSelectors ?? this._baseQuery.fieldMap();
     this._textSearchSelector = textSearchSelector;
   }
@@ -124,6 +124,11 @@ abstract class TableViewDataSource<T> extends ChangeNotifier {
     return _loadedData.length;
   }
 
+
+  bool get isFullyLoaded {
+    return !_hasMoreToLoad;
+  }
+
   bool get isItemCountApproximate {
     return _hasMoreToLoad;
   }
@@ -176,15 +181,14 @@ abstract class TableViewDataSource<T> extends ChangeNotifier {
     if (_hasMoreToLoad) {
       doLoad = _setState(STATE_PROVISIONING, prevStates: [STATE_NONE]);
       if (!doLoad) {
-        doLoad = _setState(STATE_PROVISIONING, prevStates: [STATE_IDLE]);
+        doLoad = _setState(STATE_LOADING_MORE, prevStates: [STATE_IDLE]);
       }
     }
 
     StreamSubscription? triggeredSub;
-    final provider = _dataProvider;
-    if (provider == null) {
-      return;
-    }
+    _dataProvider ??= initProvider(TableViewDataFilterCriteria.empty());
+    final provider = _dataProvider ?? initProvider(TableViewDataFilterCriteria.empty());
+
     triggeredSub = provider.next().listen((event) {
       triggeredSub?.cancel();
       if (_loadSubscription == triggeredSub) {
@@ -193,6 +197,8 @@ abstract class TableViewDataSource<T> extends ChangeNotifier {
         _setState(STATE_IDLE);
       }
     });
+
+    _loadSubscription = triggeredSub;
   }
 
   T? getItemAt(int pos) {
@@ -213,6 +219,10 @@ abstract class TableViewDataSource<T> extends ChangeNotifier {
     _loadSubscription?.cancel();
     _dataProvider?.dispose();
     _loadedData.clear();
+  }
+
+  int get currentState{
+    return _currentState;
   }
 
   Stream<int> get stateChanged {

@@ -2,6 +2,7 @@ import 'dart:collection';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:vgbnd/pages/overview/overview.dart';
 
 import 'locations_pack_tab.dart';
 import 'locations_view_tab.dart';
@@ -119,6 +120,7 @@ class LocationsOverview extends StatelessWidget {
           key: "stock",
           label: "STOCK",
           build: (context) {
+            return OverviewPage();
             return Center(
               child: Text("STOCK"),
             );

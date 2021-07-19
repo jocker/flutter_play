@@ -151,6 +151,9 @@ class TableViewController extends ChangeNotifier {
       dsRenderIndex = prependViewTypes.length;
     }
     final c = this._dataSource;
+    if (c?.currentState != TableViewDataSource.STATE_IDLE) {
+      return;
+    }
 
     if (_groupNamesViewTypeIndices.isNotEmpty && dsRenderIndex < _groupNamesViewTypeIndices.last) {
       dsRenderIndex = _groupNamesViewTypeIndices.last;
@@ -159,6 +162,7 @@ class TableViewController extends ChangeNotifier {
     if (dsIndex < 0) {
       return;
     }
+
     final endIndex = dsIndex + pageSize;
     if (c == null || c.getItemAt(dsIndex) == null) {
       return;
@@ -167,14 +171,23 @@ class TableViewController extends ChangeNotifier {
     bool hasChanges = false;
 
     while (dsIndex < endIndex) {
+
+      if(dsIndex == c.itemCount-1 && !c.isFullyLoaded){
+        return;
+      }
+
       if (c.getItemAt(dsIndex) == null) {
         // reached the end of the data source
-        _lastDataSourceRenderIndex = dsRenderIndex - 1;
+        if (c.isFullyLoaded) {
+          _lastDataSourceRenderIndex = dsRenderIndex - 1;
+        }
+
         break;
       }
 
       int viewType = TableViewController.ITEM_VIEW_TYPE_DATASOURCE_ITEM;
       if (dsIndex == 0) {
+        _groupNamesViewTypeIndices.clear();
         viewType = ITEM_VIEW_TYPE_GROUP_HEADER;
       } else {
         if (prevColumnValue == null) {
@@ -188,7 +201,10 @@ class TableViewController extends ChangeNotifier {
       }
 
       if (viewType == ITEM_VIEW_TYPE_GROUP_HEADER) {
-        _groupNamesViewTypeIndices.add(dsRenderIndex);
+        if(_groupNamesViewTypeIndices.isEmpty || _groupNamesViewTypeIndices.last != dsRenderIndex){
+          _groupNamesViewTypeIndices.add(dsRenderIndex);
+        }
+
         dsRenderIndex += 1;
         hasChanges = true;
       }

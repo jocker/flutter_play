@@ -12,12 +12,7 @@ class OverviewPage extends StatelessWidget {
   }
 
   _doStuff() async {
-    final t = DateTime.now().millisecondsSinceEpoch;
-    final cur = await SyncEngine.current().select(
-        "select * from columns where location_id=? order by coalesce(tray_id, 99999), column_name",
-        args: [225941]);
-    print("xxxx ${DateTime.now().millisecondsSinceEpoch - t}");
-    print("done");
+
   }
 
   @override

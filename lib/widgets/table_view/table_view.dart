@@ -135,7 +135,7 @@ class TableView extends StatefulWidget {
   late final double headerDividerWidth;
   late final Color? headerDividerColor;
   late final TableViewController controller;
-  final TableViewDataSource dataSource;
+  final SqlQueryDataSource dataSource;
   BuildBodyRowFunc? buildBodyRowFunc;
   final String? emptyText;
   TableRowClickCallback? onRowClick;
@@ -183,12 +183,15 @@ class _TableViewState extends State<TableView> {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder(
-      initialData: TableViewDataSource.STATE_PROVISIONING,
+      initialData: TableViewDataSource.STATE_NONE,
       stream: widget.dataSource.stateChanged,
       builder: (context, snapshot) {
         print("snapshot ${snapshot.data}");
 
         switch (snapshot.data) {
+          case TableViewDataSource.STATE_NONE:
+            widget.dataSource.getItemAt(0);
+            break;
           case TableViewDataSource.STATE_PROVISIONING:
             return Center(
               child: CircularProgressIndicator(),
@@ -197,6 +200,8 @@ class _TableViewState extends State<TableView> {
             return Center(
               child: Text("Error loading data"),
             );
+          case TableViewDataSource.STATE_LOADING_MORE:
+            return _buildList(context);
           case TableViewDataSource.STATE_IDLE:
             if (this.widget.dataSource.isEmpty) {
               return Center(
