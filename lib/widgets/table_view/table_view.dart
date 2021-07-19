@@ -1,293 +1,13 @@
-import 'dart:async';
 import 'dart:collection';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:vgbnd/constants/constants.dart';
-import 'package:vgbnd/data/cursor.dart';
+import 'package:vgbnd/widgets/table_view/table_view_controller.dart';
+import 'package:vgbnd/widgets/table_view/table_view_data_source.dart';
 
-abstract class TableViewDataSource extends ChangeNotifier {
-  static const int STATE_NONE = 0, STATE_LOADING = 1, STATE_READY = 2, STATE_ERROR = 3;
 
-  Cursor? _cursor;
-  var _isDisposed = false;
-  var _currentState = STATE_NONE;
-  var _currentVersion = 0;
-  Stream<int>? _stateChanged;
 
-  Future<Cursor> initCursor();
-
-  bool get isEmpty {
-    return (_cursor?.count ?? 0) == 0;
-  }
-
-  int get dataVersion {
-    return _currentVersion;
-  }
-
-  int get loadedCount{
-    return _cursor.co
-  }
-
-  _initCursorIfNeeded() async {
-    if (_setState(STATE_LOADING, prevStates: [STATE_NONE])) {
-      try {
-        //await Future.delayed(Duration(seconds: 2));
-        _cursor = await initCursor();
-        _setState(STATE_READY);
-      } catch (e) {
-        _setState(STATE_ERROR);
-      }
-    }
-  }
-
-  @override
-  dispose() {
-    if (!_isDisposed) {
-      super.dispose();
-      _isDisposed = true;
-      _cursor = null;
-    }
-  }
-
-  bool _setState(int newState, {List<int>? prevStates}) {
-    if (_currentState != newState) {
-      if (prevStates == null || prevStates.contains(_currentState)) {
-        _currentState = newState;
-        notifyListeners();
-        return true;
-      }
-    }
-    return false;
-  }
-
-  Stream<int> get stateChanged {
-    _initCursorIfNeeded();
-    var prevState = _currentState;
-    _stateChanged = _stateChanged ?? _createStream(() => prevState != _currentState, () => _currentState);
-    return _stateChanged!;
-  }
-
-  Stream<T> _createStream<T>(bool isChanged(), T getValue()) {
-    StreamController<T>? controller;
-    final VoidCallback stateListener = () {
-      if (isChanged()) {
-        controller?.sink.add(getValue());
-      }
-    };
-
-    controller = StreamController(onListen: () {
-      addListener(stateListener);
-    }, onCancel: () {
-      removeListener(stateListener);
-    });
-
-    return controller.stream;
-  }
-
-  invalidate() {
-    _currentVersion += 1;
-    _setState(STATE_NONE);
-  }
-}
-
-class TableViewController extends ChangeNotifier {
-  static const int ITEM_VIEW_TYPE_DATASOURCE_ITEM = 0, ITEM_VIEW_TYPE_GROUP_HEADER = 1, ITEM_VIEW_TYPE_FAB_SPACER = 2;
-
-  TableViewController({bool? addFabSpacer}) {
-    if (addFabSpacer == true) {
-      this.appendViewTypes.add(ITEM_VIEW_TYPE_FAB_SPACER);
-    }
-  }
-
-  final List<int> appendViewTypes = [];
-  final List<int> prependViewTypes = [];
-
-  String? _groupingColumn;
-
-  final List<int> _groupNamesViewTypeIndices = [];
-  int _lastCheckedGroupingIndex = -1;
-  int? _lastDataSourceRenderIndex;
-
-  final _scrollController = ScrollController();
-  TableViewDataSource? _dataSource;
-
-  final _sortDirections = new HashMap<TableColumn, SortDirection>();
-  StreamSubscription? _streamSub;
-
-  Cursor? get cursor {
-    return this._dataSource?._cursor;
-  }
-
-  int get renderItemCount {
-    return cursorCount + _groupNamesViewTypeIndices.length + appendViewTypes.length + prependViewTypes.length;
-  }
-
-  int get cursorCount {
-    return cursor?.count ?? 0;
-  }
-
-  _clearGroupingInfo() {
-    _groupNamesViewTypeIndices.clear();
-    _lastCheckedGroupingIndex = -1;
-    _lastDataSourceRenderIndex = null;
-  }
-
-  setGroupByColumn(String? columnName) {
-    if (this._groupingColumn != columnName) {
-      this._groupingColumn = columnName;
-      this._clearGroupingInfo();
-      this.notifyListeners();
-    }
-  }
-
-  getSortDirection(TableColumn col) {
-    return _sortDirections[col] ?? SortDirection.None;
-  }
-
-  setSortDirection(TableColumn col, SortDirection dir) {
-    if (getSortDirection(col) != dir) {
-      _sortDirections[col] = dir;
-      notifyListeners();
-    }
-  }
-
-  @override
-  dispose() {
-    super.dispose();
-    _streamSub?.cancel();
-  }
-
-  getItemViewType(int renderIndex) {
-    if (renderIndex < prependViewTypes.length) {
-      return prependViewTypes[renderIndex];
-    }
-    _precacheViewTypesForGrouping(renderIndex);
-    if (_groupNamesViewTypeIndices.contains(renderIndex)) {
-      return ITEM_VIEW_TYPE_GROUP_HEADER;
-    }
-    final lastDsRenderIndex = _lastDataSourceRenderIndex ?? -1;
-    final appendViewIndex = renderIndex - lastDsRenderIndex - 1;
-    if (appendViewIndex >= 0 && appendViewIndex < appendViewTypes.length) {
-      return appendViewTypes[appendViewIndex];
-    }
-
-    return ITEM_VIEW_TYPE_DATASOURCE_ITEM;
-  }
-
-  int getDatasourceIndex(int renderIndex) {
-    final minIndexForDs = prependViewTypes.length;
-    if (renderIndex < minIndexForDs) {
-      return -1;
-    }
-    if (renderIndex == minIndexForDs) {
-      return 0;
-    }
-    if (_groupNamesViewTypeIndices.isEmpty) {
-      return renderIndex - minIndexForDs;
-    }
-
-    int offset = 0;
-    for (final pos in _groupNamesViewTypeIndices) {
-      if (pos < renderIndex) {
-        offset += 1;
-      } else {
-        break;
-      }
-    }
-
-    return renderIndex - offset - minIndexForDs;
-  }
-
-  T? getDatasourceValueAt<T>(String columnName, {int? renderIndex, int? datasourceIndex}) {
-    final int cursorIndex = datasourceIndex ?? (renderIndex == null ? -1 : getDatasourceIndex(renderIndex));
-    if (cursorIndex < 0) {
-      return null;
-    }
-    final c = this.cursor;
-    if (c == null || !c.moveToPosition(cursorIndex)) {
-      return null;
-    }
-    return c.getValue(columnName: columnName);
-  }
-
-  _precacheViewTypesForGrouping(int renderIndex) {
-    final pageSize = 50;
-    if (renderIndex <= _lastCheckedGroupingIndex) {
-      return;
-    }
-
-    final groupByColumn = _groupingColumn;
-
-    if (_lastDataSourceRenderIndex != null) {
-      return;
-    } else if (groupByColumn == null) {
-      _lastDataSourceRenderIndex = prependViewTypes.length + cursorCount;
-      return;
-    }
-    if (renderIndex < prependViewTypes.length) {
-      return;
-    }
-    int dsRenderIndex = (renderIndex ~/ pageSize) * pageSize;
-    if (dsRenderIndex < prependViewTypes.length) {
-      dsRenderIndex = prependViewTypes.length;
-    }
-    final c = this.cursor;
-
-    if (_groupNamesViewTypeIndices.isNotEmpty && dsRenderIndex < _groupNamesViewTypeIndices.last) {
-      dsRenderIndex = _groupNamesViewTypeIndices.last;
-    }
-    int dsIndex = getDatasourceIndex(dsRenderIndex);
-    if (dsIndex < 0) {
-      return;
-    }
-    final endIndex = dsIndex + pageSize;
-    if (c == null || !c.moveToPosition(dsIndex)) {
-      return;
-    }
-    Object? prevColumnValue;
-    bool hasChanges = false;
-
-    while (dsIndex < endIndex) {
-      if (!c.moveToPosition(dsIndex)) {
-        // reached the end of the data source
-        _lastDataSourceRenderIndex = dsRenderIndex - 1;
-        break;
-      }
-
-      int viewType = TableViewController.ITEM_VIEW_TYPE_DATASOURCE_ITEM;
-      if (dsIndex == 0) {
-        viewType = ITEM_VIEW_TYPE_GROUP_HEADER;
-      } else {
-        if (prevColumnValue == null) {
-          prevColumnValue = this.getDatasourceValueAt(groupByColumn, datasourceIndex: dsIndex - 1);
-        }
-        final currentColumnValue = this.getDatasourceValueAt(groupByColumn, datasourceIndex: dsIndex);
-        if (currentColumnValue != null && (currentColumnValue != prevColumnValue)) {
-          viewType = ITEM_VIEW_TYPE_GROUP_HEADER;
-        }
-        prevColumnValue = currentColumnValue;
-      }
-
-      if (viewType == ITEM_VIEW_TYPE_GROUP_HEADER) {
-        _groupNamesViewTypeIndices.add(dsRenderIndex);
-        dsRenderIndex += 1;
-        hasChanges = true;
-      }
-
-      dsRenderIndex += 1;
-      dsIndex += 1;
-    }
-
-    if (hasChanges) {
-      scheduleMicrotask(() {
-        notifyListeners();
-      });
-    }
-
-    _lastCheckedGroupingIndex = dsRenderIndex - 1;
-  }
-}
 
 typedef Widget? BuildBodyRowFunc(BuildContext context, TableViewController controller, int viewType, int renderIndex);
 typedef Widget? BuildBodyCellFunc(BuildContext context, TableColumn col, TableViewController controller, int index);
@@ -433,7 +153,7 @@ class TableView extends StatefulWidget {
       : super(key: key) {
     this.headerDividerWidth = headerDividerWidth ?? 2;
     this.controller = controller ?? TableViewController();
-    this.controller._dataSource = this.dataSource;
+    this.controller.dataSource = this.dataSource;
   }
 
   @override
@@ -463,13 +183,13 @@ class _TableViewState extends State<TableView> {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder(
-      initialData: TableViewDataSource.STATE_LOADING,
+      initialData: TableViewDataSource.STATE_PROVISIONING,
       stream: widget.dataSource.stateChanged,
       builder: (context, snapshot) {
         print("snapshot ${snapshot.data}");
 
         switch (snapshot.data) {
-          case TableViewDataSource.STATE_LOADING:
+          case TableViewDataSource.STATE_PROVISIONING:
             return Center(
               child: CircularProgressIndicator(),
             );
@@ -477,7 +197,7 @@ class _TableViewState extends State<TableView> {
             return Center(
               child: Text("Error loading data"),
             );
-          case TableViewDataSource.STATE_READY:
+          case TableViewDataSource.STATE_IDLE:
             if (this.widget.dataSource.isEmpty) {
               return Center(
                 child: Text(this.widget.emptyText ?? "No items"),
@@ -501,7 +221,7 @@ class _TableViewState extends State<TableView> {
               margin: EdgeInsets.only(top: 50),
               // color: theme.secondaryHeaderColor,
               child: ListView.builder(
-                controller: widget.controller._scrollController,
+                controller: widget.controller.scrollController,
                 itemCount: widget.controller.renderItemCount,
                 itemBuilder: (context, index) {
                   return _buildBodyRow(context, index);

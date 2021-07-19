@@ -1,12 +1,9 @@
 import 'dart:async';
-import 'dart:collection';
 import 'dart:convert';
 
 import 'package:flutter/services.dart';
 import 'package:sqlite3/sqlite3.dart';
-
-import 'cursor.dart';
-import 'matrix_cursor.dart';
+import 'package:vgbnd/data/sql_result_set.dart';
 
 class DbConn {
   static final int DB_VERSION = 1;
@@ -145,40 +142,29 @@ class DbConn {
     return _db.lastInsertRowId;
   }
 
-  MatrixCursor select(String sql, [List<Object?> parameters = const []]) {
+  SqlResultSet select(String sql, [List<Object?> parameters = const []]) {
     final res = _db.select(sql, parameters);
-
-    final columnsMap = HashMap<String, int>();
-    res.columnNames.asMap().forEach((index, colName) {
-      columnsMap[colName] = index;
-    });
-
-    return MatrixCursor(columnsMap, res.rows);
+    return SqlResultSet(res.columnNames, res.rows);
   }
 
   Map<String, dynamic>? selectOne(String sql, [List<Object?> parameters = const []]) {
     final c = select(sql, parameters);
-    if (c.count != 1 || !c.moveToFirst()) {
-      return null;
+    if (c.size == 1) {
+      return c.first.toMap();
     }
-    final Map<String, dynamic> res = {};
-    for (var col in c.columnNames) {
-      dynamic v = c.getValue(columnName: col);
-      res[col] = v;
-    }
-    return res;
+    return null;
   }
 
   T? selectValue<T>(String sql, [List<Object?> parameters = const []]) {
     final c = select(sql, parameters);
-    if (c.count != 1 || !c.moveToFirst()) {
-      return null;
+
+    if (c.size == 1) {
+      if (c.columnNames.length == 1) {
+        return c.first.getValueAt(columnName: c.columnNames.first);
+      }
     }
-    final colNames = List.of(c.columnNames);
-    if (colNames.length != 1) {
-      return null;
-    }
-    return c.getValue(columnIndex: 0);
+
+    return null;
   }
 
   void dispose() {
@@ -197,7 +183,6 @@ class DbConn {
       insert(tableName, merged);
     }
   }
-
 
   void update(String tableName, Map<String, dynamic> values, [Map<String, dynamic>? whereArgs]) {
     List args = [];

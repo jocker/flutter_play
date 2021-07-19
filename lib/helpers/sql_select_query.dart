@@ -1,6 +1,6 @@
 import 'dart:collection';
 
-import 'package:vgbnd/data/cursor.dart';
+import 'package:vgbnd/data/sql_result_set.dart';
 import 'package:vgbnd/sync/sync.dart';
 
 class _SqlStringWithArgs {
@@ -28,6 +28,10 @@ class SqlSelectQueryBuilder {
   List<_SqlStringWithArgs>? _orders;
   int? _limit;
   int? _offset;
+
+  Map<String, String> fieldMap(){
+    return Map.from(_fieldsMap);
+  }
 
   field(String selector, String alias) {
     _fieldsMap[alias] = selector;
@@ -125,7 +129,7 @@ class SqlSelectQuery {
 
   SqlSelectQuery(this.sql, {this.args});
 
-  Future<Cursor> run() async {
-    return await SyncEngine.current().fetchCursor(this.sql, args: this.args);
+  Future<SqlResultSet> run() async {
+    return await SyncEngine.current().select(this.sql, args: this.args);
   }
 }

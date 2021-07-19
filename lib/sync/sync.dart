@@ -9,9 +9,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:vgbnd/api/api.dart';
 import 'package:vgbnd/bkg/task_runner.dart';
 import 'package:vgbnd/constants/constants.dart';
-import 'package:vgbnd/data/cursor.dart';
 import 'package:vgbnd/data/db.dart';
-import 'package:vgbnd/data/matrix_cursor.dart';
+import 'package:vgbnd/data/sql_result_set.dart';
 import 'package:vgbnd/models/coil.dart';
 import 'package:vgbnd/models/location.dart';
 import 'package:vgbnd/models/machine_column_sales.dart';
@@ -384,10 +383,10 @@ class SyncEngine extends TaskRunner {
     return await this.exec(_MESSAGE_TYPE_MUTATE_SYNC_OBJECT, args: MutateSyncObjectMessage.forObject(obj, op));
   }
 
-  Future<Cursor> fetchCursor(String sql, {List<Object>? args}) async {
+  Future<SqlResultSet> select(String sql, {List<Object>? args}) async {
     final Map<String, dynamic> cursorJson =
         await this.exec(_MESSAGE_TYPE_FETCH_CURSOR, args: FetchCursorMessage(sql, args ?? List.empty()));
-    return MatrixCursor.fromJson(cursorJson);
+    return SqlResultSet.fromJson(cursorJson);
   }
 
   Future<String> getLocalDatabasePath() async {
