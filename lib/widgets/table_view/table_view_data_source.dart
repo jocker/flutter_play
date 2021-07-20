@@ -14,7 +14,7 @@ class SqlQueryDataSource extends TableViewDataSource<SqlRow> {
 
   SqlQueryDataSource(this._baseQuery,
       {Map<String, String>? fieldSelectors, String? textSearchSelector, int? pageSize}) {
-    this._pageSize = pageSize ?? 5;
+    this._pageSize = pageSize ?? 50;
     this._fieldSelectors = fieldSelectors ?? this._baseQuery.fieldMap();
     this._textSearchSelector = textSearchSelector;
   }
@@ -227,7 +227,7 @@ abstract class TableViewDataSource<T> extends ChangeNotifier {
 
   Stream<int> get stateChanged {
     var prevState = _currentState;
-    _stateChanged = _stateChanged ?? _createStream(() => prevState != _currentState, () => _currentState);
+    _stateChanged = _stateChanged ?? _createStream(() => prevState != _currentState, () => _currentState).asBroadcastStream();
     return _stateChanged!;
   }
 

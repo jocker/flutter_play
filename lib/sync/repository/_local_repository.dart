@@ -10,7 +10,7 @@ import 'package:vgbnd/sync/schema.dart';
 
 import '../../ext.dart';
 
-class LocalRepository with SyncObjectRepository, SyncObjectSnapshotRepository, SchemaInfoRepository {
+class LocalRepository with SyncObjectDatabaseStorage, SyncObjectSnapshotRepository, SchemaInfoRepository {
   final DbConn _dbConn;
   bool _isDisposed = false;
 

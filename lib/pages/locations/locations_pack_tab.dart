@@ -5,19 +5,16 @@ import 'locations_common.dart';
 
 class LocationsPackTab extends StatelessWidget{
   final int _locationId;
-
-  LocationsPackTab(this._locationId);
+  final LocationObjectListController controller ;
+  LocationsPackTab(this._locationId, this.controller);
 
   @override
   Widget build(BuildContext context) {
-    final controller = LocationObjectListController();
-    controller.setGroupByColumn("tray_id");
     return buildTable(context, controller);
   }
 
   Widget buildTable(BuildContext context, LocationObjectListController controller) {
     return TableView(
-      dataSource: LocationCoilStockDatasource(_locationId),
       controller: controller,
       onRowClick: (controller, renderIndex) {},
       buildBodyRowFunc: buildTrayIdHeaderFunc,

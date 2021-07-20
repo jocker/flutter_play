@@ -1,5 +1,8 @@
 
 
+import 'package:vgbnd/sync/schema.dart';
+import 'package:vgbnd/sync/sync_object.dart';
+
 class SqlResultSet extends Iterable<SqlRow> {
   final List<String> columnNames;
   late final Map<String, int> _calculatedIndexes;
@@ -31,6 +34,12 @@ class SqlResultSet extends Iterable<SqlRow> {
   int get size {
     return rows.length;
   }
+
+  Iterable<T> mapOf<T extends SyncObject<T>>(SyncSchema<T> schema){
+    return this.map((sqlRow){
+      return schema.instantiate(sqlRow.toMap());
+    });
+  }
 }
 
 class SqlRow {
@@ -56,6 +65,8 @@ class SqlRow {
 
     return res;
   }
+
+
 }
 
 class _ResultIterator extends Iterator<SqlRow> {

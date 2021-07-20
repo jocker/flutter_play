@@ -4,7 +4,7 @@ import '../../constants/constants.dart';
 import '../schema.dart';
 import '../sync_object.dart';
 
-mixin SyncObjectRepository {
+mixin SyncObjectDatabaseStorage {
   DbConn getDb();
 
   int getNextInsertId(String schemaName);
@@ -19,29 +19,56 @@ mixin SyncObjectRepository {
   }
 
   T? loadFirstObjectBy<T extends SyncObject<T>>(SyncSchema<T> schema, Map<String, dynamic> where, {DbConn? db}) {
-    List<String> wheres = [];
-    List<dynamic> params = [];
-
-    if (db == null) {
-      db = getDb();
+    final obj = schema.allocate();
+    if (loadFirstObjectInto(obj, where, db: db)) {
+      return obj;
     }
-
-    for (var k in where.keys) {
-      wheres.add("$k=?");
-      params.add(where[k]);
-    }
-
-    final values = db.selectOne("select * from ${schema.tableName} where ${wheres.join(" and ")} limit 1", params);
-    if (values == null) {
-      return null;
-    }
-
-    final instance = schema.instantiate(values);
-
-    return instance;
+    return null;
   }
 
-  int insertValues(SyncSchema schema, Map<String, dynamic> values, {DbConn? db, OnConflictDo? onConflict}) {
+  bool loadFirstObjectInto(SyncObject obj, Map<String, dynamic> where, {DbConn? db}) {
+    final schema = obj.getSchema();
+    final query = StringBuffer("select * from ${schema.tableName}");
+    final List<dynamic> params = [];
+
+    _appendWhere(query, params, where);
+    query.write(" limit 1");
+
+    final values = (db ?? getDb()).selectOne(query.toString(), params);
+    if (values == null) {
+      return false;
+    }
+    schema.assignValues(obj, values);
+    return true;
+  }
+
+  _appendWhere(StringBuffer query, List<dynamic> queryParams, Map<String, dynamic>? whereParams) {
+    if (whereParams != null) {
+      var isFirst = true;
+      for (var k in whereParams.keys) {
+        query.write(isFirst ? " where " : " and ");
+        isFirst = false;
+
+        query..write(k)..write(" =? ");
+        queryParams.add(whereParams[k]);
+      }
+    }
+  }
+
+  bool insertObject(SyncObject obj, {DbConn? db, OnConflictDo? onConflict, List<String>? columns, bool? reload}) {
+    final schema = obj.getSchema();
+    final insertColumns =
+        columns ?? schema.columns.where((element) => element.name != "id").map((e) => e.name).toList();
+
+    final Map<String, dynamic> insertValues = {};
+    for (final colName in insertColumns) {
+      final col = schema.getColumnByName(colName);
+      if (col == null) {
+        continue;
+      }
+      insertValues[col.name] = col.readAttribute(obj);
+    }
+
     if (db == null) {
       db = getDb();
     }
@@ -49,27 +76,26 @@ mixin SyncObjectRepository {
     var id = 0;
     final idCol = schema.idColumn;
     if (idCol != null) {
-      values.remove(idCol);
+      insertValues.remove(idCol);
       id = getNextInsertId(schema.schemaName);
-      values[idCol.name] = id;
+      insertValues[idCol.name] = id;
     }
 
-    db.insert(schema.schemaName, values, onConflict: onConflict);
+    db.insert(schema.schemaName, insertValues, onConflict: onConflict);
     final rowId = db.lastInsertRowId;
     if (db.affectedRowsCount == 1 && rowId != 0) {
-      return rowId;
+      if (reload != false) {
+        loadFirstObjectInto(obj, {"rowid": rowId}, db: db);
+      }
+      return true;
     }
-    return 0;
+    return false;
   }
 
-  T? insertObject<T extends SyncObject<T>>(SyncSchema<T> schema, Map<String, dynamic> values,
-      {DbConn? db, OnConflictDo? onConflict}) {
-    final rowId = insertValues(schema, values, db: db, onConflict: onConflict);
-
-    if (rowId != 0) {
-      return loadFirstObjectBy(schema, {"rowid": rowId}, db: db);
-    }
-    return null;
+  bool update(String tableName, Map<String, dynamic> values, Map<String, dynamic> where, {DbConn? db}) {
+    db ??= getDb();
+    db.update(tableName, values, where);
+    return db.affectedRowsCount > 0;
   }
 
   bool updateEntry(SyncSchema schema, int id, Map<String, dynamic> values, {DbConn? db}) {

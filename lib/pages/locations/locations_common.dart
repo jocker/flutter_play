@@ -10,27 +10,28 @@ import 'package:vgbnd/widgets/table_view/table_view_data_source.dart';
 class LocationCoilStockDatasource extends SqlQueryDataSource {
   final int locationId;
 
-  LocationCoilStockDatasource(this.locationId): super(SqlSelectQuery.from("columns")
-    ..field("columns.display_name", "display_name")
-    ..field("columns.tray_id", "tray_id")
-    ..field("ifnull(products.name, 'Not Assigned')", "product_name")
-    ..field("columns.id", "coil_id")
-    ..field("products.id", "product_id")
-    ..field("ifnull(columns.last_fill, 0)", "last_fill")
-    ..field("ifnull(columns.capacity, 0)", "par_value")
-    ..field("ifnull(column_product_inventory.pack_units_count, 0)", "pack_units_count")
-    ..field("ifnull(column_product_inventory.sold_units_count, 0)", "sold_units_count")
-    ..field("ifnull(column_product_inventory.current_fill, 0)", "current_fill")
-    ..field("products.casesize", "product_case_size")
-    ..join("join column_product_inventory on columns.id = column_product_inventory.column_id")
-    ..join("left join products on columns.product_id=products.id")
-    ..order("tray_id asc, columns.display_name asc")
-    ..where("columns.location_id=?", [locationId]));
-
+  LocationCoilStockDatasource(this.locationId, bool prodRequired)
+      : super(SqlSelectQuery.from("columns")
+          ..field("columns.display_name", "display_name")
+          ..field("columns.tray_id", "tray_id")
+          ..field("ifnull(products.name, 'Not Assigned')", "product_name")
+          ..field("columns.id", "coil_id")
+          ..field("products.id", "product_id")
+          ..field("ifnull(columns.last_fill, 0)", "last_fill")
+          ..field("ifnull(columns.capacity, 0)", "par_value")
+          ..field("ifnull(column_product_inventory.pack_units_count, 0)", "pack_units_count")
+          ..field("ifnull(column_product_inventory.sold_units_count, 0)", "sold_units_count")
+          ..field("ifnull(column_product_inventory.current_fill, 0)", "current_fill")
+          ..field("products.casesize", "product_case_size")
+          ..join("join column_product_inventory on columns.id = column_product_inventory.column_id")
+          ..join("left join products on columns.product_id=products.id")
+          ..order("tray_id asc, columns.display_name asc")
+          ..where(prodRequired ? "products.id is not null" : "true")
+          ..where("columns.location_id=?", [locationId]));
 }
 
 class LocationObjectListController extends TableViewController {
-  LocationObjectListController() : super(addFabSpacer: true);
+  LocationObjectListController(SqlQueryDataSource ds) : super(ds, addFabSpacer: true);
 
   var _showCases = false;
   final _coilValues = new HashMap<int, int?>();

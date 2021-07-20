@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:vgbnd/pages/overview/overview.dart';
 
+import 'locations_common.dart';
 import 'locations_pack_tab.dart';
 import 'locations_view_tab.dart';
 
@@ -28,9 +29,14 @@ class TabPanel extends StatefulWidget {
   }
 }
 
-class _TabPanelState extends State<TabPanel> with SingleTickerProviderStateMixin {
+class _TabPanelState extends State<TabPanel> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late TabController _tabController;
   final _renderedTabs = new HashSet<String>();
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+  }
 
   @override
   void initState() {
@@ -51,9 +57,7 @@ class _TabPanelState extends State<TabPanel> with SingleTickerProviderStateMixin
             _renderedTabs.add(tab.key);
           });
         }
-        print("activate index $index");
       }
-      print("X index=$index previousIndex=$previousIndex isChanging=$isChanging");
     });
   }
 
@@ -98,6 +102,8 @@ class _TabPanelState extends State<TabPanel> with SingleTickerProviderStateMixin
 
 class LocationsOverview extends StatelessWidget {
   final locationId = 231265;
+  final _controllers = HashMap<String, dynamic>();
+
   @override
   Widget build(BuildContext context) {
     return TabPanel(
@@ -106,14 +112,17 @@ class LocationsOverview extends StatelessWidget {
           key: "view",
           label: "VIEW",
           build: (context) {
-            return LocationViewTab(locationId);
+            return LocationViewTab(
+              locationId,
+              getOrInitController("view")
+            );
           },
         ),
         TabConfig(
           key: "pack",
           label: "PACK",
           build: (context) {
-            return LocationsPackTab(locationId);
+            return LocationsPackTab(locationId, getOrInitController("pack"));
           },
         ),
         TabConfig(
@@ -128,5 +137,26 @@ class LocationsOverview extends StatelessWidget {
         )
       ],
     );
+  }
+
+  dynamic getOrInitController(String which) {
+    if (_controllers.containsKey(which)) {
+      return _controllers[which];
+    }
+    dynamic ctrl;
+    switch (which) {
+      case "view":
+        ctrl = (LocationObjectListController(LocationCoilStockDatasource(locationId, false))..setGroupByColumn("tray_id"));
+        break;
+      case "pack":
+        ctrl = (LocationObjectListController(LocationCoilStockDatasource(locationId, true ))..setGroupByColumn("tray_id"));
+        break;
+    }
+
+    if (ctrl == null) {
+      throw Exception("Don't know how to create controller $which");
+    }
+    _controllers[which] = ctrl;
+    return ctrl;
   }
 }

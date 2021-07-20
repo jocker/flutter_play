@@ -15,6 +15,7 @@ import 'package:vgbnd/models/coil.dart';
 import 'package:vgbnd/models/location.dart';
 import 'package:vgbnd/models/machine_column_sales.dart';
 import 'package:vgbnd/models/pack.dart';
+import 'package:vgbnd/models/pack_entry.dart';
 import 'package:vgbnd/models/product.dart';
 import 'package:vgbnd/models/productlocation.dart';
 import 'package:vgbnd/sync/object_mutation.dart';
@@ -117,7 +118,7 @@ class SyncEngineIsolate {
     return await pullChanges();
   }
 
-  Future<WatchSchemasReply> watchSchemas(WatchSchemasMessage ask) async {
+  Future<_WatchSchemasReply> watchSchemas(_WatchSchemasMessage ask) async {
     var prevNum = _getSchemaSignature(ask.schemas);
     final initial = prevNum;
     final subscription = _localRepository.onSchemaChanged().listen((event) {
@@ -136,23 +137,23 @@ class SyncEngineIsolate {
       subscription.cancel();
     });
 
-    return WatchSchemasReply(initial, cancel.sendPort);
+    return _WatchSchemasReply(initial, cancel.sendPort);
   }
 
-  Future<MutationResult> handleMutationRequest(MutateSyncObjectMessage req) async {
+  Future<MutationResult> handleMutationRequest(_MutateSyncObjectMessage req) async {
     final syncObject = req.getObject();
     if (syncObject == null) {
-      return MutationResult.failure();
+      return MutationResult.localFailure(message: "Invalid object");
     }
     final schema = syncObject.getSchema();
 
     if (!schema.localMutationHandler.canHandleMutationType(req.op)) {
-      return MutationResult.failure();
+      return MutationResult.localFailure(message: "Can't handle ${req.op} for schema ${schema.schemaName}");
     }
 
     final mutData = await schema.localMutationHandler.createMutation(_localRepository, syncObject, req.op);
     if (mutData == null) {
-      return MutationResult.failure();
+      return MutationResult.localFailure(message: "Couldn't create changeset for ${syncObject.getSchema().schemaName}");
     }
 
     if (schema.remoteMutationHandler.canHandleMutationType(req.op)) {
@@ -208,8 +209,7 @@ class SyncEngineIsolate {
         final created = mutationRes.created;
         if (created != null) {
           for (final rec in created) {
-            _localRepository.insertValues(rec.getSchema(), rec.dumpValues().toMap(),
-                db: tx, onConflict: OnConflictDo.Replace);
+            _localRepository.insertObject(rec, db: tx, onConflict: OnConflictDo.Replace, reload: false);
           }
         }
 
@@ -255,16 +255,16 @@ class SyncEngineIsolate {
       case _MESSAGE_TYPE_INVALIDATE_CACHE:
         return await invalidateLocalCache();
       case _MESSAGE_TYPE_WATCH_SCHEMA_CHANGED:
-        final ask = message.args as WatchSchemasMessage;
+        final ask = message.args as _WatchSchemasMessage;
         return await watchSchemas(ask);
       case _MESSAGE_TYPE_SET_CONN_INFO:
         _connectivityInfo.setValue(message.args as int);
         return;
       case _MESSAGE_TYPE_MUTATE_SYNC_OBJECT:
-        final msg = message.args as MutateSyncObjectMessage;
+        final msg = message.args as _MutateSyncObjectMessage;
         return await handleMutationRequest(msg);
       case _MESSAGE_TYPE_FETCH_CURSOR:
-        final msg = message.args as FetchCursorMessage;
+        final msg = message.args as _FetchCursorMessage;
 
         final cursor = this._localRepository.dbConn.select(msg.sql, msg.args);
         return cursor.toJson();
@@ -296,7 +296,8 @@ class SyncEngine extends TaskRunner {
     Product.SCHEMA_NAME,
     ProductLocation.SCHEMA_NAME,
     MachineColumnSale.SCHEMA_NAME,
-    Pack.SCHEMA_NAME
+    Pack.SCHEMA_NAME,
+    PackEntry.SCHEMA_NAME
   ];
 
   static _runTasks(SetupMessage setupMessage) async {
@@ -362,8 +363,8 @@ class SyncEngine extends TaskRunner {
 
   Future<Stream<int>> watchSchemas(List<String> schemaNames) async {
     final p = ReceivePort();
-    WatchSchemasReply reply =
-        await this.exec(_MESSAGE_TYPE_WATCH_SCHEMA_CHANGED, args: WatchSchemasMessage(p.sendPort, schemaNames));
+    _WatchSchemasReply reply =
+        await this.exec(_MESSAGE_TYPE_WATCH_SCHEMA_CHANGED, args: _WatchSchemasMessage(p.sendPort, schemaNames));
 
     StreamController<int> controller = StreamController<int>(
       onCancel: () {
@@ -380,12 +381,12 @@ class SyncEngine extends TaskRunner {
   }
 
   Future<MutationResult> mutateObject(SyncObject obj, SyncObjectMutationType op) async {
-    return await this.exec(_MESSAGE_TYPE_MUTATE_SYNC_OBJECT, args: MutateSyncObjectMessage.forObject(obj, op));
+    return await this.exec(_MESSAGE_TYPE_MUTATE_SYNC_OBJECT, args: _MutateSyncObjectMessage.forObject(obj, op));
   }
 
   Future<SqlResultSet> select(String sql, {List<Object>? args}) async {
     final Map<String, dynamic> cursorJson =
-        await this.exec(_MESSAGE_TYPE_FETCH_CURSOR, args: FetchCursorMessage(sql, args ?? List.empty()));
+        await this.exec(_MESSAGE_TYPE_FETCH_CURSOR, args: _FetchCursorMessage(sql, args ?? List.empty()));
     return SqlResultSet.fromJson(cursorJson);
   }
 
@@ -408,29 +409,29 @@ class SyncEngine extends TaskRunner {
   }
 }
 
-class WatchSchemasMessage {
+class _WatchSchemasMessage {
   final SendPort notifyPort;
   final List<String> schemas;
 
-  WatchSchemasMessage(this.notifyPort, this.schemas);
+  _WatchSchemasMessage(this.notifyPort, this.schemas);
 }
 
-class WatchSchemasReply {
+class _WatchSchemasReply {
   final SendPort cancelPort;
   final int dataVersion;
 
-  WatchSchemasReply(this.dataVersion, this.cancelPort);
+  _WatchSchemasReply(this.dataVersion, this.cancelPort);
 }
 
-class MutateSyncObjectMessage {
+class _MutateSyncObjectMessage {
   final Map<String, dynamic> syncObjectAttrs;
   final String schemaName;
   final SyncObjectMutationType op;
 
-  MutateSyncObjectMessage(this.schemaName, this.op, this.syncObjectAttrs);
+  _MutateSyncObjectMessage(this.schemaName, this.op, this.syncObjectAttrs);
 
-  static MutateSyncObjectMessage forObject(SyncObject object, SyncObjectMutationType op) {
-    return MutateSyncObjectMessage(
+  static _MutateSyncObjectMessage forObject(SyncObject object, SyncObjectMutationType op) {
+    return _MutateSyncObjectMessage(
       object.getSchema().schemaName,
       op,
       object.dumpValues().toMap(),
@@ -442,16 +443,40 @@ class MutateSyncObjectMessage {
   }
 }
 
-class FetchCursorMessage {
+class _FetchCursorMessage {
   final String sql;
   final List<Object?> args;
 
-  FetchCursorMessage(this.sql, this.args);
+  _FetchCursorMessage(this.sql, this.args);
 }
 
-class FetchCursorReply {
+class _FetchCursorReply {
   List<String> headers;
   List<List<Object?>> rows;
 
-  FetchCursorReply(this.headers, this.rows);
+  _FetchCursorReply(this.headers, this.rows);
+}
+
+//  {"pack":{"ts":1626771132580,"data":[{"product_id":88894,"column_id":727228,"unitcount":8},{"product_id":88922,"column_id":727229,"unitcount":8}]}}
+class PackRequest {}
+
+// {"stock":{"ts":1626771276617,"data":[{"product_id":88894,"column_id":727228,"unitcount":9},{"product_id":88922,"column_id":727229,"unitcount":9}]}}
+class StockRequest {}
+
+class ProductCoilInventory {
+  final int productId, coilId, unitCount;
+
+  static ProductCoilInventory fromJson(Map<String, dynamic> json) {
+    return ProductCoilInventory(productId: json["product_id"], coilId: json["column_id"], unitCount: json["unitcount"]);
+  }
+
+  ProductCoilInventory({required this.productId, required this.coilId, required this.unitCount});
+
+  Map<String, dynamic> toJson() {
+    return {
+      "product_id": productId,
+      "column_id": coilId,
+      "unitcount": unitCount,
+    };
+  }
 }

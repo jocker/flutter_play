@@ -30,7 +30,7 @@ mixin DefaultLocalMutationHandlerMixin<T extends SyncObject<T>> {
     switch (op) {
       case SyncObjectMutationType.Update:
         if (!syncObj.isNewRecord()) {
-          final prevInstance = localRepo.loadObjectById(syncObj.getSchema(), syncObj.getId()) as T?;
+          final prevInstance = localRepo.loadObjectById(syncObj.getSchema(), syncObj.getId());
           if (prevInstance == null) {
             return null;
           }
@@ -79,13 +79,14 @@ mixin DefaultLocalMutationHandlerMixin<T extends SyncObject<T>> {
 
     switch (mutData.mutationType) {
       case SyncObjectMutationType.Create:
-        rec = localRepo.insertObject(schema, mutData.data!) as T;
+        throw UnsupportedError("");
+        //rec = localRepo.insertObject(schema, mutData.data!) as T;
         break;
       case SyncObjectMutationType.Update:
         rec = localRepo.updateObject(schema, mutData.objectId, mutData.data!) as T;
         break;
       case SyncObjectMutationType.Delete:
-        rec = localRepo.loadObjectById(schema, mutData.objectId) as T?;
+        rec = localRepo.loadObjectById(schema, mutData.objectId);
         if (rec != null) {
           if (!localRepo.deleteEntry(schema, mutData.objectId)) {
             rec = null;

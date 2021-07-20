@@ -90,17 +90,8 @@ create table if not exists  machine_column_sales(
 );
 
 
--- TABLE SCHEMA pack_requests
-create table if not exists  pack_requests(
-    id integer not null,
-	location_id integer,
-	stock_request_id integer,
-    primary key(id)
-);
-
-
 -- TABLE SCHEMA notes
-create table if not exists  notes(
+create table if not exists notes(
     id integer not null,
 	content text,
     primary key(id)
@@ -126,7 +117,7 @@ create table if not exists  order_delivery_requests(
 
 
 -- TABLE SCHEMA packs
-create table if not exists  packs(
+create table if not exists packs(
 	id integer not null,
 	location_id integer,
 	restock_id integer,
@@ -134,7 +125,7 @@ create table if not exists  packs(
 );
 
 -- TABLE SCHEMA pack_entries
-create table if not exists  pack_entries(
+create table if not exists pack_entries(
     id integer not null,
 
 	product_id integer,
@@ -142,7 +133,7 @@ create table if not exists  pack_entries(
 	column_id integer,
 	pack_id integer,
 	restock_id integer,
-	unit_count integer,
+	unitcount integer,
     primary key(id)
 );
 

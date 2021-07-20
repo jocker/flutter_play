@@ -1,4 +1,4 @@
-import 'package:vgbnd/sync/mutation/local_mutation_handler.dart';
+import 'package:vgbnd/sync/mutation/default_local_mutation_handler.dart';
 import 'package:vgbnd/sync/sync_object.dart';
 
 import '../../constants/constants.dart';
@@ -57,12 +57,32 @@ class MutationResult {
   }
 
   replace(int prevId, int newId, SyncObject replacement) {
-    replacements = (replacements ?? [])
-      ..add(SyncObjectReplacement(prevId: prevId, newId: newId, object: replacement));
+    replacements = (replacements ?? [])..add(SyncObjectReplacement(prevId: prevId, newId: newId, object: replacement));
+  }
+
+  static MutationResult remoteFailure({String? message, Map<String, String>? messages}) {
+    return failure(
+        sourceStorage: SyncStorageType.Remote,
+        errorsMessages: mergeErrorMessages(message: message, messages: messages));
+  }
+
+  static MutationResult localFailure({String? message, Map<String, String>? messages}) {
+    return failure(
+        sourceStorage: SyncStorageType.Local,
+        errorsMessages: mergeErrorMessages(message: message, messages: messages));
   }
 
   static MutationResult failure({SyncStorageType? sourceStorage, Map<String, String>? errorsMessages}) {
     return MutationResult(sourceStorage ?? SyncStorageType.Local).._errorsMessages = errorsMessages;
+  }
+
+  static Map<String, String>? mergeErrorMessages({String? message, Map<String, String>? messages}) {
+    if (messages != null) {
+      return messages;
+    } else if (message != null) {
+      return {"base": message};
+    }
+    return null;
   }
 
   Map<String, dynamic> toJson() {
@@ -111,7 +131,7 @@ abstract class LocalMutationHandler<T> {
   // writes the changelog in the local repository
   // this means that all local tables should be updated accordingly
   // normally, this will happen when the app is in offline mode
-  Future<MutationResult> applyLocalMutation(ObjectMutationData mutationData, LocalRepository localRepo);
+  Future<MutationResult> applyLocalMutation(ObjectMutationData changelog, LocalRepository localRepo);
 }
 
 abstract class RemoteMutationHandler<T> {

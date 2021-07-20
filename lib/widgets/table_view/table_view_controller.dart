@@ -9,7 +9,7 @@ import 'package:vgbnd/widgets/table_view/table_view_data_source.dart';
 class TableViewController extends ChangeNotifier {
   static const int ITEM_VIEW_TYPE_DATASOURCE_ITEM = 0, ITEM_VIEW_TYPE_GROUP_HEADER = 1, ITEM_VIEW_TYPE_FAB_SPACER = 2;
 
-  TableViewController({bool? addFabSpacer}) {
+  TableViewController(this.dataSource, {bool? addFabSpacer}) {
     if (addFabSpacer == true) {
       this.appendViewTypes.add(ITEM_VIEW_TYPE_FAB_SPACER);
     }
@@ -17,6 +17,7 @@ class TableViewController extends ChangeNotifier {
 
   final List<int> appendViewTypes = [];
   final List<int> prependViewTypes = [];
+  final SqlQueryDataSource dataSource;
 
   String? _groupingColumn;
 
@@ -25,7 +26,6 @@ class TableViewController extends ChangeNotifier {
   int? _lastDataSourceRenderIndex;
 
   final _scrollController = ScrollController();
-  SqlQueryDataSource? _dataSource;
 
   final _sortDirections = new HashMap<TableColumn, SortDirection>();
   StreamSubscription? _streamSub;
@@ -35,14 +35,10 @@ class TableViewController extends ChangeNotifier {
   }
 
   int get datasourceCount {
-    return _dataSource?.itemCount ?? 0;
+    return dataSource.itemCount;
   }
 
   get scrollController => _scrollController;
-
-  set dataSource(SqlQueryDataSource dataSource) {
-    _dataSource = dataSource;
-  }
 
   _clearGroupingInfo() {
     _groupNamesViewTypeIndices.clear();
@@ -76,6 +72,7 @@ class TableViewController extends ChangeNotifier {
   }
 
   getItemViewType(int renderIndex) {
+
     if (renderIndex < prependViewTypes.length) {
       return prependViewTypes[renderIndex];
     }
@@ -84,7 +81,7 @@ class TableViewController extends ChangeNotifier {
       return ITEM_VIEW_TYPE_GROUP_HEADER;
     }
     final lastDsRenderIndex = _lastDataSourceRenderIndex ?? -1;
-    final appendViewIndex = renderIndex - lastDsRenderIndex - 1;
+    final appendViewIndex = renderIndex - lastDsRenderIndex ;
     if (appendViewIndex >= 0 && appendViewIndex < appendViewTypes.length) {
       return appendViewTypes[appendViewIndex];
     }
@@ -121,7 +118,7 @@ class TableViewController extends ChangeNotifier {
     if (cursorIndex < 0) {
       return null;
     }
-    final row = this._dataSource?.getItemAt(cursorIndex);
+    final row = this.dataSource.getItemAt(cursorIndex);
 
     if (row != null) {
       return row.getValueAt(columnName: columnName);
@@ -140,7 +137,9 @@ class TableViewController extends ChangeNotifier {
     if (_lastDataSourceRenderIndex != null) {
       return;
     } else if (groupByColumn == null) {
-      _lastDataSourceRenderIndex = prependViewTypes.length + datasourceCount;
+      if(dataSource.isFullyLoaded){
+        _lastDataSourceRenderIndex = prependViewTypes.length + datasourceCount;
+      }
       return;
     }
     if (renderIndex < prependViewTypes.length) {
@@ -150,8 +149,8 @@ class TableViewController extends ChangeNotifier {
     if (dsRenderIndex < prependViewTypes.length) {
       dsRenderIndex = prependViewTypes.length;
     }
-    final c = this._dataSource;
-    if (c?.currentState != TableViewDataSource.STATE_IDLE) {
+    final c = this.dataSource;
+    if (c.currentState != TableViewDataSource.STATE_IDLE) {
       return;
     }
 
@@ -164,22 +163,21 @@ class TableViewController extends ChangeNotifier {
     }
 
     final endIndex = dsIndex + pageSize;
-    if (c == null || c.getItemAt(dsIndex) == null) {
+    if (c.getItemAt(dsIndex) == null) {
       return;
     }
     Object? prevColumnValue;
     bool hasChanges = false;
 
     while (dsIndex < endIndex) {
-
-      if(dsIndex == c.itemCount-1 && !c.isFullyLoaded){
+      if (dsIndex == c.itemCount - 1 && !c.isFullyLoaded) {
         return;
       }
 
       if (c.getItemAt(dsIndex) == null) {
         // reached the end of the data source
         if (c.isFullyLoaded) {
-          _lastDataSourceRenderIndex = dsRenderIndex - 1;
+          _lastDataSourceRenderIndex = dsRenderIndex ;
         }
 
         break;
@@ -201,7 +199,7 @@ class TableViewController extends ChangeNotifier {
       }
 
       if (viewType == ITEM_VIEW_TYPE_GROUP_HEADER) {
-        if(_groupNamesViewTypeIndices.isEmpty || _groupNamesViewTypeIndices.last != dsRenderIndex){
+        if (_groupNamesViewTypeIndices.isEmpty || _groupNamesViewTypeIndices.last != dsRenderIndex) {
           _groupNamesViewTypeIndices.add(dsRenderIndex);
         }
 

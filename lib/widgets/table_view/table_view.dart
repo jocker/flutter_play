@@ -6,9 +6,6 @@ import 'package:vgbnd/constants/constants.dart';
 import 'package:vgbnd/widgets/table_view/table_view_controller.dart';
 import 'package:vgbnd/widgets/table_view/table_view_data_source.dart';
 
-
-
-
 typedef Widget? BuildBodyRowFunc(BuildContext context, TableViewController controller, int viewType, int renderIndex);
 typedef Widget? BuildBodyCellFunc(BuildContext context, TableColumn col, TableViewController controller, int index);
 typedef Widget? BuildHeaderCellFunc(BuildContext context, TableColumn col, TableViewController controller);
@@ -135,7 +132,6 @@ class TableView extends StatefulWidget {
   late final double headerDividerWidth;
   late final Color? headerDividerColor;
   late final TableViewController controller;
-  final SqlQueryDataSource dataSource;
   BuildBodyRowFunc? buildBodyRowFunc;
   final String? emptyText;
   TableRowClickCallback? onRowClick;
@@ -145,15 +141,13 @@ class TableView extends StatefulWidget {
       required this.columns,
       double? headerDividerWidth,
       this.headerDividerColor,
-      TableViewController? controller,
+      required TableViewController controller,
       this.buildBodyRowFunc,
       this.emptyText,
-      required this.dataSource,
       this.onRowClick})
       : super(key: key) {
     this.headerDividerWidth = headerDividerWidth ?? 2;
-    this.controller = controller ?? TableViewController();
-    this.controller.dataSource = this.dataSource;
+    this.controller = controller;
   }
 
   @override
@@ -166,31 +160,37 @@ class _TableViewState extends State<TableView> {
   final List<double> _columnWidths = [];
   double columnWidthsSignature = 0;
 
+  late VoidCallback _controllerListener;
+
   @override
   void initState() {
     super.initState();
-    this.widget.controller.addListener(() {
-      this.setState(() {});
-    });
+
+    _controllerListener = () {
+      setState(() {});
+    };
+
+    this.widget.controller.addListener(_controllerListener);
   }
 
   @override
   void dispose() {
-    this.widget.controller.dispose();
+    //this.widget.controller.dispose();
+    this.widget.controller.removeListener(_controllerListener);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder(
-      initialData: TableViewDataSource.STATE_NONE,
-      stream: widget.dataSource.stateChanged,
+      initialData: widget.controller.dataSource.currentState,
+      stream: widget.controller.dataSource.stateChanged,
       builder: (context, snapshot) {
         print("snapshot ${snapshot.data}");
 
         switch (snapshot.data) {
           case TableViewDataSource.STATE_NONE:
-            widget.dataSource.getItemAt(0);
+            widget.controller.dataSource.getItemAt(0);
             break;
           case TableViewDataSource.STATE_PROVISIONING:
             return Center(
@@ -203,7 +203,7 @@ class _TableViewState extends State<TableView> {
           case TableViewDataSource.STATE_LOADING_MORE:
             return _buildList(context);
           case TableViewDataSource.STATE_IDLE:
-            if (this.widget.dataSource.isEmpty) {
+            if (widget.controller.dataSource.isEmpty) {
               return Center(
                 child: Text(this.widget.emptyText ?? "No items"),
               );

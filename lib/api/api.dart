@@ -111,6 +111,11 @@ class Api {
     return await _makeRequestForChangeset(HttpMethod.DELETE, "collections/$schemaName/$objectId");
   }
 
+  Future<Result<List<RemoteSchemaChangelog>>> postRequestForChangeset(String urlPath, Object payload, {Map<String, String>? queryParams}){
+    return _makeRequestForChangeset(HttpMethod.POST, urlPath, payload: payload, includeDeleted: true, queryParams: queryParams);
+  }
+
+
   Future<Result<List<RemoteSchemaChangelog>>> _makeRequestForChangeset(HttpMethod httpMethod, String urlPath,
       {Object? payload, bool? includeDeleted, Map<String, String>? queryParams}) async {
     var reqQp = {

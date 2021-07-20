@@ -5,6 +5,8 @@ import 'package:vgbnd/ext.dart';
 import 'package:vgbnd/models/coil.dart';
 import 'package:vgbnd/models/location.dart';
 import 'package:vgbnd/models/machine_column_sales.dart';
+import 'package:vgbnd/models/pack.dart';
+import 'package:vgbnd/models/pack_entry.dart';
 import 'package:vgbnd/models/product.dart';
 import 'package:vgbnd/models/productlocation.dart';
 import 'package:vgbnd/sync/sync_object.dart';
@@ -87,10 +89,14 @@ class SyncSchema<T extends SyncObject<T>> {
   }
 
   SyncColumn<T>? get idColumn {
-    return columns.firstWhereOrNull((col) => col.name == "id");
+    return getColumnByName("id");
   }
 
-  static SyncSchema<dynamic>? byNameStrict(String name) {
+  SyncColumn<T>? getColumnByName(String name) {
+    return columns.firstWhereOrNull((col) => col.name == name);
+  }
+
+  static SyncSchema<dynamic> byNameStrict(String name) {
     final schema = byName(name);
     if (schema == null) {
       throw Exception("unknown schema $name");
@@ -114,6 +120,10 @@ class SyncSchema<T extends SyncObject<T>> {
         return ProductLocation.schema;
       case MachineColumnSale.SCHEMA_NAME:
         return MachineColumnSale.schema;
+      case Pack.SCHEMA_NAME:
+        return Pack.schema;
+      case PackEntry.SCHEMA_NAME:
+        return PackEntry.schema;
     }
 
     return null;
@@ -162,13 +172,17 @@ class SyncSchema<T extends SyncObject<T>> {
 
   T instantiate(Map<String, dynamic>? values) {
     T instance = allocate();
+    assignValues(instance, values);
+    return instance;
+  }
+
+  assignValues(T instance, Map<String, dynamic>? values) {
     if (values != null) {
       final m = PrimitiveValueHolder.fromMap(values);
       for (var col in columns) {
         col.assignAttribute(m, col.name, instance);
       }
     }
-    return instance;
   }
 
   PrimitiveValueHolder dumpObject(T instance) {

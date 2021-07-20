@@ -184,10 +184,10 @@ class DbConn {
     }
   }
 
-  void update(String tableName, Map<String, dynamic> values, [Map<String, dynamic>? whereArgs]) {
+  void update(String tableName, Map<String, dynamic> updateValues, [Map<String, dynamic>? whereArgs]) {
     List args = [];
     final query = StringBuffer("update $tableName set ");
-    _appendToQuery(query, values, ", ", args);
+    _appendToQuery(query, updateValues, ", ", args);
     if ((whereArgs?.length ?? 0) > 0) {
       query.write(" where ");
       _appendToQuery(query, whereArgs!, " and ", args);
