@@ -1,4 +1,5 @@
 import 'package:vgbnd/models/location.dart';
+import 'package:vgbnd/models/product.dart';
 import 'package:vgbnd/sync/schema.dart';
 
 import '../sync/sync_object.dart';
@@ -25,6 +26,7 @@ class Coil extends SyncObject<Coil> {
     ),
     SyncColumn(
       "product_id",
+      referenceOf: ReferenceOfSchema(Product.SCHEMA_NAME, onDeleteReferenceDo: OnDeleteReferenceDo.Nothing),
       readAttribute: (dest) => dest.productId,
       assignAttribute: (value, key, dest) {
         dest.productId = value.getValue(key) ?? dest.productId;
@@ -32,7 +34,7 @@ class Coil extends SyncObject<Coil> {
     ),
     SyncColumn(
       "location_id",
-      referenceOf: Location.SCHEMA_NAME,
+      referenceOf: ReferenceOfSchema(Location.SCHEMA_NAME),
       readAttribute: (dest) => dest.locationId,
       assignAttribute: (value, key, dest) {
         dest.locationId = value.getValue(key) ?? dest.locationId;

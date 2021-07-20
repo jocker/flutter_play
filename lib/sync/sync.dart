@@ -19,13 +19,13 @@ import 'package:vgbnd/models/pack_entry.dart';
 import 'package:vgbnd/models/product.dart';
 import 'package:vgbnd/models/productlocation.dart';
 import 'package:vgbnd/sync/object_mutation.dart';
-import 'package:vgbnd/sync/repository/_remote_repository.dart';
+import 'package:vgbnd/sync/repository/remote_repository.dart';
 import 'package:vgbnd/sync/schema.dart';
 import 'package:vgbnd/sync/sync_object.dart';
 
 import 'mutation/mutation.dart';
 import 'net_connectivity_info.dart';
-import 'repository/_local_repository.dart';
+import 'repository/local_repository.dart';
 
 const _MESSAGE_TYPE_PULL_CHANGES = "pull_changes",
     _MESSAGE_TYPE_INVALIDATE_CACHE = "invalidate_cache",
@@ -45,45 +45,6 @@ class SyncEngineIsolate {
   SyncEngineIsolate(this._db, this._account, this._connectivityInfo) {
     _localRepository = LocalRepository(_db);
     _remoteRepository = RemoteRepository(this._account, this._connectivityInfo);
-  }
-
-  MutationResult _processChangelog(List<RemoteSchemaChangelog> changelogs) {
-    final mutResult = MutationResult(SyncStorageType.Remote);
-
-    for (var changelog in changelogs) {
-      final schema = SyncSchema.byName(changelog.schemaName);
-      if (schema == null) {
-        continue;
-      }
-
-      int? maxRemoteID;
-
-      final idColName = schema.idColumn?.name;
-      if (idColName != null) {
-        maxRemoteID = _localRepository.dbConn
-            .selectValue<int?>("select coalesce(0, (select max($idColName}) from ${schema.tableName}))");
-      }
-
-      for (var entry in changelog.entries()) {
-        final syncObject = entry.toSyncObject();
-        if (syncObject == null) {
-          continue;
-        }
-
-        if (entry.isDeleted == true) {
-          mutResult.add(SyncObjectMutationType.Delete, syncObject);
-        }
-
-        if (maxRemoteID != null && maxRemoteID < syncObject.getId()) {
-          mutResult.add(SyncObjectMutationType.Create, syncObject);
-        } else {
-          mutResult.add(SyncObjectMutationType.Update, syncObject);
-        }
-      }
-    }
-
-    mutResult.setSuccessful(true);
-    return mutResult;
   }
 
   Future<bool> pullChanges() async {
@@ -158,7 +119,7 @@ class SyncEngineIsolate {
 
     if (schema.remoteMutationHandler.canHandleMutationType(req.op)) {
       if (_connectivityInfo.networkingEnabled) {
-        MutationResult? remoteResult;
+        Result<List<RemoteSchemaChangelog>>? remoteResult;
         try {
           remoteResult =
               await schema.remoteMutationHandler.submitMutation(mutData, _localRepository, _remoteRepository);
@@ -166,8 +127,8 @@ class SyncEngineIsolate {
           return e.asMutationResult();
         }
         final res =
-            await schema.remoteMutationHandler.applyRemoteMutationResult(mutData, remoteResult, _localRepository);
-        _handleMutationResult(res);
+            await schema.remoteMutationHandler.applyRemoteMutationResult(mutData, remoteResult.body!, _localRepository);
+        _applyMutationResult(res);
         return res;
       } else {
         // enqueue this mutation for submitting it later
@@ -176,64 +137,139 @@ class SyncEngineIsolate {
     }
 
     final res = await schema.localMutationHandler.applyLocalMutation(mutData, _localRepository);
-    _handleMutationResult(res);
+    _applyMutationResult(res);
     return res;
   }
 
-  _handleMutationResult(MutationResult mutationRes) {
-    if (mutationRes.isSuccessful) {
-      _localRepository.dbConn.runInTransaction((tx) {
-        final replacements = mutationRes.replacements;
-        if (replacements != null) {
-          for (final repl in replacements) {
-            final schema = repl.object.getSchema();
-            final idCol = schema.idColumn;
-            if (idCol == null) {
-              continue;
-            }
-
-            tx.execute(
-                "update ${schema.tableName} set ${idCol.name}=? where ${idCol.name} =? ", [repl.newId, repl.prevId]);
-
-            tx.insert(
-                "_sync_object_resolved_ids",
-                {
-                  "schema_name": schema.schemaName,
-                  "local_id": repl.prevId,
-                  "remote_id": repl.newId,
-                },
-                onConflict: OnConflictDo.Ignore);
-          }
-        }
-
-        final created = mutationRes.created;
-        if (created != null) {
-          for (final rec in created) {
-            _localRepository.insertObject(rec, db: tx, onConflict: OnConflictDo.Replace, reload: false);
-          }
-        }
-
-        final updated = mutationRes.updated;
-        if (updated != null) {
-          for (final rec in updated) {
-            _localRepository.updateEntry(rec.getSchema(), rec.getId(), rec.dumpValues().toMap(), db: tx);
-          }
-        }
-
-        final deleted = mutationRes.deleted;
-        if (deleted != null) {
-          for (final rec in deleted) {
-            _localRepository.deleteEntry(rec.getSchema(), rec.getId(), db: tx);
-          }
-        }
-
-        return true;
-      });
-
-      for (final schemaName in mutationRes.affectedSchemas()) {
-        _localRepository.localSchemaInfos[schemaName]?.invalidateVersion();
-      }
+  bool _applyMutationResult(MutationResult mutResult) {
+    if (!mutResult.isSuccessful) {
+      return false;
     }
+
+    final affectedSchemas = Set<String>();
+
+    final success = _localRepository.dbConn.runInTransaction((tx) {
+      final replacements = mutResult.replacements;
+      if (replacements != null && mutResult.sourceStorage == SyncStorageType.Remote) {
+        for (final repl in mutResult.replacements!) {
+          final parentSchema = repl.object.getSchema();
+
+          tx.insert(
+              "_sync_object_resolved_ids",
+              {
+                "schema_name": parentSchema.schemaName,
+                "local_id": repl.prevId,
+                "remote_id": repl.newId,
+              },
+              onConflict: OnConflictDo.Replace);
+
+          affectedSchemas.add(parentSchema.schemaName);
+
+          final idCol = parentSchema.idColumn;
+          if (idCol == null) {
+            continue;
+          }
+
+          // update the id in the database
+          tx.update(parentSchema.schemaName, {idCol.name: repl.newId}, {idCol.name: repl.prevId});
+          // mark this record as updated
+          mutResult.add(SyncObjectMutationType.Update, repl.object);
+
+          // update all objects which reference this object with the new id
+          SyncEngine.SYNC_SCHEMAS.forEach((schemaName) {
+            final depSchema = SyncSchema.byNameStrict(schemaName);
+            depSchema.columns.where((col) => col.referenceOf?.schemaName == parentSchema.schemaName).forEach((depCol) {
+              tx.update(depSchema.tableName, {depCol.name: repl.newId}, {depCol.name: repl.prevId});
+              affectedSchemas.add(depSchema.schemaName);
+            });
+          });
+        }
+      }
+
+      final deleted = mutResult.deleted;
+      if (deleted != null) {
+        // collect all deleted objects and any other object which references this object
+        final delRecords = LinkedHashMap<String, SyncObject>();
+        for (final del in mutResult.deleted!) {
+          _collectReferencesToObject(del, delRecords, tx);
+        }
+
+        final schemaDels = HashMap<String, List<int>>();
+        for (final rec in delRecords.values) {
+          final schema = rec.getSchema();
+          final idCol = schema.idColumn;
+          if (idCol == null) {
+            continue;
+          }
+          final recId = idCol.readAttribute(rec);
+          if (!schemaDels.containsKey(schema.schemaName)) {
+            schemaDels[schema.schemaName] = [recId];
+          } else {
+            schemaDels[schema.schemaName]!.add(recId);
+          }
+        }
+
+        for (final schemaName in schemaDels.keys) {
+          final schema = SyncSchema.byNameStrict(schemaName);
+          tx.execute(
+              "delete from ${schema.tableName} where ${schema.idColumn!.name} in (${schemaDels[schemaName]!.join(", ")})");
+          affectedSchemas.add(schemaName);
+        }
+      }
+
+      final List<SyncObject> upserts = [];
+      if (mutResult.created != null) {
+        upserts.addAll(mutResult.created!);
+      }
+      if (mutResult.updated != null) {
+        upserts.addAll(mutResult.updated!);
+      }
+
+      if (upserts.isNotEmpty) {
+        for (final rec in upserts) {
+          final schema = rec.getSchema();
+          tx.insert(schema.tableName, rec.dumpValues().toMap(), onConflict: OnConflictDo.Replace);
+          affectedSchemas.add(schema.schemaName);
+        }
+      }
+
+      return true;
+    });
+
+    if (!success) {
+      affectedSchemas.clear();
+      return false;
+    }
+
+    affectedSchemas.forEach((schemaName) {
+      _localRepository.localSchemaInfos[schemaName]?.invalidateVersion();
+    });
+    return true;
+  }
+
+  _collectReferencesToObject(SyncObject rec, Map<String, SyncObject> dest, DbConn db) {
+    final recSchema = rec.getSchema();
+    final key = "${recSchema.schemaName}-${rec.id}";
+    if (dest.containsKey(key)) {
+      return;
+    }
+    dest[key] = rec;
+
+    SyncEngine.SYNC_SCHEMAS.forEach((childSchemaName) {
+      final childSchema = SyncSchema.byNameStrict(childSchemaName);
+      childSchema.columns
+          .where((col) =>
+              col.referenceOf?.schemaName == recSchema.schemaName &&
+              col.referenceOf?.onDeleteReferenceDo == OnDeleteReferenceDo.Delete)
+          .forEach((depCol) {
+        db
+            .select("select * from $childSchemaName where ${depCol.name}=?", [rec.id])
+            .map((e) => childSchema.instantiate(e.toMap()))
+            .forEach((childRec) {
+              _collectReferencesToObject(childRec, dest, db);
+            });
+      });
+    });
   }
 
   _getSchemaSignature(List<String> schemaNames) {

@@ -3,9 +3,9 @@ import 'dart:collection';
 
 import 'package:vgbnd/data/db.dart';
 
-import '../schema.dart';
-import '../sync.dart';
-import '_local_repository.dart';
+import '../../schema.dart';
+import '../../sync.dart';
+import '../local_repository.dart';
 
 mixin SchemaInfoRepository{
   DbConn getDb();

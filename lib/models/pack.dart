@@ -6,6 +6,8 @@ import 'package:vgbnd/sync/sync_object.dart';
 
 import 'pack_entry.dart';
 
+final _packMutationHandler = PackMutationHandler();
+
 class Pack extends SyncObject<Pack> {
   static const SchemaName SCHEMA_NAME = 'packs';
 
@@ -27,14 +29,14 @@ class Pack extends SyncObject<Pack> {
 
   static final schema = SyncSchema<Pack>(SCHEMA_NAME,
       syncOps: [SyncSchemaOp.RemoteWrite],
-      localMutationHandler: LocalPackMutationHandler(),
-      remoteMutationHandler: RemotePackMutationHandler(),
+      localMutationHandler: _packMutationHandler,
+      remoteMutationHandler: _packMutationHandler,
       allocate: () => Pack(),
       columns: [
         SyncColumn.id(),
         SyncColumn(
           "location_id",
-          referenceOf: Location.SCHEMA_NAME,
+          referenceOf: ReferenceOfSchema(Location.SCHEMA_NAME, onDeleteReferenceDo: OnDeleteReferenceDo.Delete),
           readAttribute: (dest) => dest.locationId,
           assignAttribute: (value, key, dest) {
             dest.locationId = value.getValue(key) ?? dest.locationId;

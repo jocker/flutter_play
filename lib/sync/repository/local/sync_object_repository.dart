@@ -1,8 +1,8 @@
 import 'package:vgbnd/data/db.dart';
 
-import '../../constants/constants.dart';
-import '../schema.dart';
-import '../sync_object.dart';
+import '../../../constants/constants.dart';
+import '../../schema.dart';
+import '../../sync_object.dart';
 
 mixin SyncObjectDatabaseStorage {
   DbConn getDb();

@@ -16,7 +16,7 @@ class PackEntry extends SyncObject<PackEntry> {
         SyncColumn.id(),
         SyncColumn(
           "product_id",
-          referenceOf: Product.SCHEMA_NAME,
+          referenceOf: ReferenceOfSchema(Product.SCHEMA_NAME, onDeleteReferenceDo: OnDeleteReferenceDo.Delete),
           readAttribute: (dest) => dest.productId,
           assignAttribute: (value, key, dest) {
             dest.productId = value.getValue(key) ?? dest.productId;
@@ -24,7 +24,7 @@ class PackEntry extends SyncObject<PackEntry> {
         ),
         SyncColumn(
           "location_id",
-          referenceOf: Location.SCHEMA_NAME,
+          referenceOf: ReferenceOfSchema(Location.SCHEMA_NAME, onDeleteReferenceDo: OnDeleteReferenceDo.Delete),
           readAttribute: (dest) => dest.locationId,
           assignAttribute: (value, key, dest) {
             dest.locationId = value.getValue(key) ?? dest.locationId;
@@ -32,7 +32,7 @@ class PackEntry extends SyncObject<PackEntry> {
         ),
         SyncColumn(
           "column_id",
-          referenceOf: Coil.SCHEMA_NAME,
+          referenceOf: ReferenceOfSchema(Coil.SCHEMA_NAME, onDeleteReferenceDo: OnDeleteReferenceDo.Delete),
           readAttribute: (dest) => dest.coilId,
           assignAttribute: (value, key, dest) {
             dest.coilId = value.getValue(key) ?? dest.coilId;
@@ -40,7 +40,7 @@ class PackEntry extends SyncObject<PackEntry> {
         ),
         SyncColumn(
           "pack_id",
-          referenceOf: Pack.SCHEMA_NAME,
+          referenceOf: ReferenceOfSchema(Pack.SCHEMA_NAME, onDeleteReferenceDo: OnDeleteReferenceDo.Delete),
           readAttribute: (dest) => dest.packId,
           assignAttribute: (value, key, dest) {
             dest.packId = value.getValue(key) ?? dest.packId;

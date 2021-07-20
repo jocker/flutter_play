@@ -1,6 +1,7 @@
+import 'package:vgbnd/sync/mutation/mutation_handlers.dart';
 import 'package:vgbnd/sync/mutation/sync_object_snapshot.dart';
 import 'package:vgbnd/sync/object_mutation.dart';
-import 'package:vgbnd/sync/repository/_local_repository.dart';
+import 'package:vgbnd/sync/repository/local_repository.dart';
 import 'package:vgbnd/sync/schema.dart';
 import 'package:vgbnd/sync/sync_object.dart';
 
@@ -9,7 +10,26 @@ import '../value_holder.dart';
 import 'mutation.dart';
 
 
-mixin DefaultLocalMutationHandlerMixin<T extends SyncObject<T>> {
+class DefaultLocalMutationHandler<T extends SyncObject<T>> with LocalMutationHandler<T>{
+  final List<SyncObjectMutationType> _supportedMutationTypes;
+
+  DefaultLocalMutationHandler(this._supportedMutationTypes);
+
+  @override
+  bool canHandleMutationType(SyncObjectMutationType t) {
+    return _supportedMutationTypes.contains(t);
+  }
+
+  @override
+  Future<MutationResult> applyLocalMutation(ObjectMutationData mutData, LocalRepository localRepo) async {
+    return applyLocalMutationForObject(mutData, localRepo);
+  }
+
+  @override
+  Future<ObjectMutationData?> createMutation(LocalRepository localRepo, T instance, SyncObjectMutationType op) async {
+    return createObjectMutationData(localRepo, instance, op);
+  }
+
   ensureHasIdSet(LocalRepository local, T instance) {
     final idCol = instance.getSchema().idColumn;
     if (idCol != null) {
@@ -104,27 +124,5 @@ mixin DefaultLocalMutationHandlerMixin<T extends SyncObject<T>> {
       mutResult.setSuccessful(false);
     }
     return mutResult;
-  }
-}
-
-class DefaultLocalMutationHandler<T extends SyncObject<T>> extends LocalMutationHandler<T>
-    with DefaultLocalMutationHandlerMixin<T> {
-  final List<SyncObjectMutationType> _supportedMutationTypes;
-
-  DefaultLocalMutationHandler(this._supportedMutationTypes);
-
-  @override
-  bool canHandleMutationType(SyncObjectMutationType t) {
-    return _supportedMutationTypes.contains(t);
-  }
-
-  @override
-  Future<MutationResult> applyLocalMutation(ObjectMutationData mutData, LocalRepository localRepo) async {
-    return applyLocalMutationForObject(mutData, localRepo);
-  }
-
-  @override
-  Future<ObjectMutationData?> createMutation(LocalRepository localRepo, T instance, SyncObjectMutationType op) async {
-    return createObjectMutationData(localRepo, instance, op);
   }
 }

@@ -3,9 +3,9 @@ import 'dart:math';
 import 'package:vgbnd/api/api.dart';
 import 'package:vgbnd/data/db.dart';
 import 'package:vgbnd/ext.dart';
-import 'package:vgbnd/sync/repository/schema_info_repository.dart';
-import 'package:vgbnd/sync/repository/sync_object_repository.dart';
-import 'package:vgbnd/sync/repository/sync_object_snapshot_repository.dart';
+import 'package:vgbnd/sync/repository/local/schema_info_repository.dart';
+import 'package:vgbnd/sync/repository/local/sync_object_repository.dart';
+import 'package:vgbnd/sync/repository/local/sync_object_snapshot_repository.dart';
 import 'package:vgbnd/sync/schema.dart';
 
 import '../../ext.dart';

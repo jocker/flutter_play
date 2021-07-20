@@ -32,8 +32,8 @@ class ProductLocation extends SyncObject<ProductLocation> {
   static final schema = SyncSchema<ProductLocation>(SCHEMA_NAME,
       allocate: () => ProductLocation(),
       columns: [
-        SyncColumn.readonly("product_id", referenceOf: Product.SCHEMA_NAME),
-        SyncColumn.readonly("location_id", referenceOf: Location.SCHEMA_NAME),
+        SyncColumn.readonly("product_id", referenceOf: ReferenceOfSchema(Product.SCHEMA_NAME, onDeleteReferenceDo: OnDeleteReferenceDo.Delete)),
+        SyncColumn.readonly("location_id", referenceOf: ReferenceOfSchema(Location.SCHEMA_NAME, onDeleteReferenceDo: OnDeleteReferenceDo.Delete)),
         SyncColumn.readonly("unitcount"),
       ]);
 

@@ -1,28 +1,29 @@
+import 'package:vgbnd/api/api.dart';
 import 'package:vgbnd/constants/constants.dart';
 import 'package:vgbnd/data/db.dart';
 import 'package:vgbnd/models/pack.dart';
 import 'package:vgbnd/models/pack_entry.dart';
 import 'package:vgbnd/sync/object_mutation.dart';
-import 'package:vgbnd/sync/repository/_local_repository.dart';
-import 'package:vgbnd/sync/repository/_remote_repository.dart';
+import 'package:vgbnd/sync/repository/local_repository.dart';
+import 'package:vgbnd/sync/repository/remote_repository.dart';
 import 'package:vgbnd/sync/sync_object.dart';
 
 import 'mutation.dart';
+import 'mutation_handlers.dart';
 
-class LocalPackMutationHandler extends LocalMutationHandler<Pack> {
+class PackMutationHandler with LocalMutationHandler<Pack>, RemoteMutationHandler<Pack> {
   @override
   Future<MutationResult> applyLocalMutation(ObjectMutationData changelog, LocalRepository localRepo) {
     switch (changelog.mutationType) {
       case SyncObjectMutationType.Create:
         return _applyLocationMutationForCreate(changelog, localRepo);
+      default:
+        throw UnimplementedError();
     }
-
-    throw UnimplementedError();
   }
 
-  Future<MutationResult> _applyLocationMutationForCreate(
-      ObjectMutationData changelog, LocalRepository localRepo) async {
-    final pack = Pack.fromJson(changelog.data!);
+  Future<MutationResult> _applyLocationMutationForCreate(ObjectMutationData mutData, LocalRepository localRepo) async {
+    final pack = _getPack(mutData, localRepo);
     if (pack == null) {
       return MutationResult.failure();
     }
@@ -69,32 +70,25 @@ class LocalPackMutationHandler extends LocalMutationHandler<Pack> {
     }
     return data;
   }
-}
-
-class RemotePackMutationHandler extends RemoteMutationHandler<Pack> {
-  @override
-  Future<MutationResult> applyRemoteMutationResult(
-      ObjectMutationData mutationData, MutationResult remoteResult, LocalRepository localRepo) {
-    throw UnimplementedError();
-  }
 
   @override
-  Future<MutationResult> submitMutation(
-      ObjectMutationData changelog, LocalRepository localRepo, RemoteRepository remoteRepo) async {
-    final pack = Pack.fromJson(changelog.data!);
+  Future<Result<List<RemoteSchemaChangelog>>> submitMutation(ObjectMutationData mutData, LocalRepository localRepo,
+      RemoteRepository remoteRepo) async {
+    final pack = _getPack(mutData, localRepo);
+
     if (pack == null) {
-      return MutationResult.failure(sourceStorage: SyncStorageType.Remote);
+      return Result.failure("");
     }
 
     final packEntries = pack.entries;
     if (packEntries?.isEmpty ?? true) {
-      return MutationResult.remoteFailure(message: "No pack entries");
+      return Result.success([]);
     }
 //  {"pack":{"ts":1626771132580,"data":[{"product_id":88894,"column_id":727228,"unitcount":8},{"product_id":88922,"column_id":727229,"unitcount":8}]}}
 
     final Map<String, dynamic> payload = {
       "pack": {
-        "ts": changelog.revNum,
+        "ts": mutData.revNum,
         "data": packEntries!.map((e) {
           return {
             "product_id": e.productId,
@@ -106,17 +100,39 @@ class RemotePackMutationHandler extends RemoteMutationHandler<Pack> {
     };
 
     final res = await remoteRepo.api.postRequestForChangeset("/collections/pack/${pack.locationId}", payload);
+    return res;
+  }
 
+
+  Pack? _getPack(ObjectMutationData mutData, LocalRepository localRepo) {
+    final data = mutData.data;
+    if (data == null) {
+      return null;
+    }
+    final pack = Pack.fromJson(data);
+    if (pack == null) {
+      return null;
+    }
+    if (!pack.isNewRecord()) {
+      List<PackEntry> packEntries = localRepo.dbConn
+          .select("select * from ${pack
+          .getSchema()
+          .tableName} where pack_id = ?", [pack.id])
+          .mapOf(PackEntry.schema)
+          .toList();
+
+      pack.entries = packEntries;
+    }
+    return pack;
+  }
+
+  @override
+  Future<MutationResult> applyRemoteMutationResult(ObjectMutationData mutData,
+      List<RemoteSchemaChangelog> remoteChangelog, LocalRepository localRepo) {
+    for (final entry in remoteChangelog) {
+      entry.entries()
+    }
     throw UnimplementedError();
   }
 
-  _assignPackEntriesIfNeeded(DbConn db, Pack pack) {
-    if (pack.isNewRecord()) {
-      return;
-    }
-    List<PackEntry> packEntries = db
-        .select("select * from ${pack.getSchema().tableName} where pack_id = ?", [pack.id])
-        .mapOf(PackEntry.schema)
-        .toList();
-  }
 }

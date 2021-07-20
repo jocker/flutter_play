@@ -1,7 +1,7 @@
 import 'package:vgbnd/data/db.dart';
 import 'package:vgbnd/sync/mutation/sync_object_snapshot.dart';
 
-import '../schema.dart';
+import '../../schema.dart';
 
 mixin SyncObjectSnapshotRepository {
   DbConn getDb();

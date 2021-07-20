@@ -13,6 +13,7 @@ import 'package:vgbnd/sync/sync_object.dart';
 import 'package:vgbnd/sync/value_holder.dart';
 
 import 'mutation/mutation.dart';
+import 'mutation/mutation_handlers.dart';
 
 typedef SchemaName = String;
 
@@ -24,9 +25,10 @@ class SchemaVersion {
 }
 
 class SyncColumn<T> {
-  static SyncColumn<T> readonly<T extends SyncObject<T>>(String colName, {SchemaName? referenceOf}) {
+  static SyncColumn<T> readonly<T extends SyncObject<T>>(String colName, {ReferenceOfSchema? referenceOf}) {
     return SyncColumn<T>(
       "id",
+      referenceOf: referenceOf,
       readAttribute: (dest) => throw UnsupportedError("unsupported"),
       assignAttribute: (value, key, dest) {
         throw UnsupportedError("unsupported");
@@ -45,7 +47,11 @@ class SyncColumn<T> {
   }
 
   String name;
-  SchemaName? referenceOf;
+
+  /// this column is a foreign key to another table.
+  /// Will be updated whenever the primary key of the table it references gets updated
+  /// Will be deleted whenever the the record it references gets deleted
+  ReferenceOfSchema? referenceOf;
   Function(PrimitiveValueHolder value, String key, T dest) assignAttribute;
   dynamic Function(T dest) readAttribute;
   List<SyncSchemaOp> syncOps;
@@ -198,3 +204,14 @@ class SyncSchema<T extends SyncObject<T>> {
     // this should be a quick operation as we don't want to keep the database locked for a long period of time
   }
 }
+
+class ReferenceOfSchema {
+  final String schemaName;
+  late final onDeleteReferenceDo;
+
+  ReferenceOfSchema(this.schemaName, {OnDeleteReferenceDo? onDeleteReferenceDo}) {
+    this.onDeleteReferenceDo = onDeleteReferenceDo ?? OnDeleteReferenceDo.Nothing;
+  }
+}
+
+enum OnDeleteReferenceDo { Nothing, Delete }

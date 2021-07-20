@@ -1,10 +1,11 @@
+import 'package:vgbnd/api/api.dart';
 import 'package:vgbnd/sync/mutation/default_local_mutation_handler.dart';
 import 'package:vgbnd/sync/sync_object.dart';
 
 import '../../constants/constants.dart';
 import '../object_mutation.dart';
-import '../repository/_local_repository.dart';
-import '../repository/_remote_repository.dart';
+import '../repository/local_repository.dart';
+import '../repository/remote_repository.dart';
 
 class SyncObjectReplacement {
   final SyncObject object;
@@ -104,93 +105,6 @@ class MutationResult {
   }
 }
 
-abstract class LocalMutationHandler<T> {
-  static LocalMutationHandler<T> empty<T>() {
-    return _EmptyMutationHandler();
-  }
-
-  static LocalMutationHandler<T> basic<T extends SyncObject<T>>({List<SyncObjectMutationType>? supportedTypes}) {
-    return DefaultLocalMutationHandler<T>(supportedTypes ??
-        [SyncObjectMutationType.Create, SyncObjectMutationType.Update, SyncObjectMutationType.Delete]);
-  }
-
-  // override in case not SyncObjectMutationType operations are supported
-  bool canHandleMutationType(SyncObjectMutationType t) {
-    switch (t) {
-      case SyncObjectMutationType.Create:
-      case SyncObjectMutationType.Update:
-      case SyncObjectMutationType.Delete:
-        return true;
-      default:
-        return false;
-    }
-  }
-
-  Future<ObjectMutationData?> createMutation(LocalRepository localRepo, T instance, SyncObjectMutationType op);
-
-  // writes the changelog in the local repository
-  // this means that all local tables should be updated accordingly
-  // normally, this will happen when the app is in offline mode
-  Future<MutationResult> applyLocalMutation(ObjectMutationData changelog, LocalRepository localRepo);
-}
-
-abstract class RemoteMutationHandler<T> {
-  // override in case not SyncObjectMutationType operations are supported
-
-  static RemoteMutationHandler<T> empty<T>() {
-    return _EmptyMutationHandler();
-  }
-
-  // override in case not SyncObjectMutationType operations are supported
-  bool canHandleMutationType(SyncObjectMutationType t) {
-    switch (t) {
-      case SyncObjectMutationType.Create:
-      case SyncObjectMutationType.Update:
-      case SyncObjectMutationType.Delete:
-        return true;
-      default:
-        return false;
-    }
-  }
-
-  // submit this changelog to the server
-  Future<MutationResult> submitMutation(
-      ObjectMutationData changelog, LocalRepository localRepo, RemoteRepository remoteRepo);
-
-  // once the submission is successful, apply the results to the local repo
-  Future<MutationResult> applyRemoteMutationResult(
-      ObjectMutationData mutationData, MutationResult remoteResult, LocalRepository localRepo);
-}
-
-class _EmptyMutationHandler<T> with LocalMutationHandler<T>, RemoteMutationHandler<T> {
-  @override
-  bool canHandleMutationType(SyncObjectMutationType t) {
-    return false;
-  }
-
-  @override
-  Future<MutationResult> applyLocalMutation(ObjectMutationData mutationData, LocalRepository localRepo) {
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<MutationResult> applyRemoteMutationResult(
-      ObjectMutationData mutationData, MutationResult remoteResult, LocalRepository localRepo) {
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<MutationResult> submitMutation(
-      ObjectMutationData changelog, LocalRepository localRepo, RemoteRepository remoteRepo) {
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<ObjectMutationData?> createMutation(LocalRepository localRepo, T instance, SyncObjectMutationType op) {
-    // TODO: implement createMutation
-    throw UnimplementedError();
-  }
-}
 
 class RemoteMutationException implements Exception {
   bool isFatal() {
