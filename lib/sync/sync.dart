@@ -18,10 +18,10 @@ import 'package:vgbnd/models/pack.dart';
 import 'package:vgbnd/models/pack_entry.dart';
 import 'package:vgbnd/models/product.dart';
 import 'package:vgbnd/models/productlocation.dart';
-import 'package:vgbnd/sync/object_mutation.dart';
 import 'package:vgbnd/sync/repository/remote_repository.dart';
 import 'package:vgbnd/sync/schema.dart';
 import 'package:vgbnd/sync/sync_object.dart';
+import 'package:vgbnd/sync/sync_pending_remote_mutation.dart';
 
 import 'mutation/mutation.dart';
 import 'net_connectivity_info.dart';
@@ -132,7 +132,7 @@ class SyncEngineIsolate {
         return res;
       } else {
         // enqueue this mutation for submitting it later
-        _localRepository.dbConn.insert(ObjectMutationData.TABLE_NAME, mutData.toDbValues());
+        _localRepository.dbConn.insert(SyncPendingRemoteMutation.TABLE_NAME, mutData.toDbValues());
       }
     }
 

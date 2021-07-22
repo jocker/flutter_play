@@ -15,6 +15,8 @@ abstract class PrimitiveValueHolder {
     return _MapValueHolder(Map.from(values));
   }
 
+  remove(String key);
+
   T? getValue<T>(String key);
 
   putValue(String key, dynamic value);
@@ -52,6 +54,11 @@ class _MapValueHolder extends PrimitiveValueHolder {
       return readPrimitive<T>(_values[key]);
     }
     return null;
+  }
+
+  @override
+  remove(String key) {
+    _values.remove(key);
   }
 
   @override

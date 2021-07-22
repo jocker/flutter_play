@@ -1,19 +1,18 @@
 import 'package:vgbnd/api/api.dart';
 import 'package:vgbnd/constants/constants.dart';
-import 'package:vgbnd/data/db.dart';
 import 'package:vgbnd/models/pack.dart';
 import 'package:vgbnd/models/pack_entry.dart';
-import 'package:vgbnd/sync/object_mutation.dart';
 import 'package:vgbnd/sync/repository/local_repository.dart';
 import 'package:vgbnd/sync/repository/remote_repository.dart';
 import 'package:vgbnd/sync/sync_object.dart';
+import 'package:vgbnd/sync/sync_pending_remote_mutation.dart';
 
 import 'mutation.dart';
 import 'mutation_handlers.dart';
 
 class PackMutationHandler with LocalMutationHandler<Pack>, RemoteMutationHandler<Pack> {
   @override
-  Future<MutationResult> applyLocalMutation(ObjectMutationData changelog, LocalRepository localRepo) {
+  Future<MutationResult> applyLocalMutation(SyncPendingRemoteMutation changelog, LocalRepository localRepo) {
     switch (changelog.mutationType) {
       case SyncObjectMutationType.Create:
         return _applyLocationMutationForCreate(changelog, localRepo);
@@ -22,7 +21,8 @@ class PackMutationHandler with LocalMutationHandler<Pack>, RemoteMutationHandler
     }
   }
 
-  Future<MutationResult> _applyLocationMutationForCreate(ObjectMutationData mutData, LocalRepository localRepo) async {
+  Future<MutationResult> _applyLocationMutationForCreate(
+      SyncPendingRemoteMutation mutData, LocalRepository localRepo) async {
     final pack = _getPack(mutData, localRepo);
     if (pack == null) {
       return MutationResult.failure();
@@ -63,8 +63,9 @@ class PackMutationHandler with LocalMutationHandler<Pack>, RemoteMutationHandler
   }
 
   @override
-  Future<ObjectMutationData?> createMutation(LocalRepository localRepo, Pack pack, SyncObjectMutationType op) async {
-    final data = ObjectMutationData.fromModel(pack, op);
+  Future<SyncPendingRemoteMutation?> createMutation(
+      LocalRepository localRepo, Pack pack, SyncObjectMutationType op) async {
+    final data = SyncPendingRemoteMutation.fromModel(pack, op);
     if (op == SyncObjectMutationType.Create) {
       data.data = pack.toJson();
     }
@@ -72,8 +73,8 @@ class PackMutationHandler with LocalMutationHandler<Pack>, RemoteMutationHandler
   }
 
   @override
-  Future<Result<List<RemoteSchemaChangelog>>> submitMutation(ObjectMutationData mutData, LocalRepository localRepo,
-      RemoteRepository remoteRepo) async {
+  Future<Result<List<RemoteSchemaChangelog>>> submitMutation(
+      SyncPendingRemoteMutation mutData, LocalRepository localRepo, RemoteRepository remoteRepo) async {
     final pack = _getPack(mutData, localRepo);
 
     if (pack == null) {
@@ -88,7 +89,7 @@ class PackMutationHandler with LocalMutationHandler<Pack>, RemoteMutationHandler
 
     final Map<String, dynamic> payload = {
       "pack": {
-        "ts": mutData.revNum,
+        "ts": mutData.ts,
         "data": packEntries!.map((e) {
           return {
             "product_id": e.productId,
@@ -103,8 +104,7 @@ class PackMutationHandler with LocalMutationHandler<Pack>, RemoteMutationHandler
     return res;
   }
 
-
-  Pack? _getPack(ObjectMutationData mutData, LocalRepository localRepo) {
+  Pack? _getPack(SyncPendingRemoteMutation mutData, LocalRepository localRepo) {
     final data = mutData.data;
     if (data == null) {
       return null;
@@ -115,9 +115,7 @@ class PackMutationHandler with LocalMutationHandler<Pack>, RemoteMutationHandler
     }
     if (!pack.isNewRecord()) {
       List<PackEntry> packEntries = localRepo.dbConn
-          .select("select * from ${pack
-          .getSchema()
-          .tableName} where pack_id = ?", [pack.id])
+          .select("select * from ${pack.getSchema().tableName} where pack_id = ?", [pack.id])
           .mapOf(PackEntry.schema)
           .toList();
 
@@ -127,12 +125,9 @@ class PackMutationHandler with LocalMutationHandler<Pack>, RemoteMutationHandler
   }
 
   @override
-  Future<MutationResult> applyRemoteMutationResult(ObjectMutationData mutData,
-      List<RemoteSchemaChangelog> remoteChangelog, LocalRepository localRepo) {
-    for (final entry in remoteChangelog) {
-      entry.entries()
-    }
+  Future<MutationResult> applyRemoteMutationResult(
+      SyncPendingRemoteMutation mutData, List<RemoteSchemaChangelog> remoteChangelog, LocalRepository localRepo) {
+    for (final entry in remoteChangelog) {}
     throw UnimplementedError();
   }
-
 }

@@ -5,12 +5,11 @@ import 'package:vgbnd/data/db.dart';
 import 'package:vgbnd/ext.dart';
 import 'package:vgbnd/sync/repository/local/schema_info_repository.dart';
 import 'package:vgbnd/sync/repository/local/sync_object_repository.dart';
-import 'package:vgbnd/sync/repository/local/sync_object_snapshot_repository.dart';
 import 'package:vgbnd/sync/schema.dart';
 
 import '../../ext.dart';
 
-class LocalRepository with SyncObjectDatabaseStorage, SyncObjectSnapshotRepository, SchemaInfoRepository {
+class LocalRepository with SyncObjectDatabaseStorage, SchemaInfoRepository {
   final DbConn _dbConn;
   bool _isDisposed = false;
 

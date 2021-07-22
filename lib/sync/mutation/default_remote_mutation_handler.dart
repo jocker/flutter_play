@@ -1,15 +1,13 @@
-import 'dart:collection';
 
 import 'package:vgbnd/api/api.dart';
 import 'package:vgbnd/constants/constants.dart';
 import 'package:vgbnd/data/db.dart';
 import 'package:vgbnd/log.dart';
 import 'package:vgbnd/sync/mutation/mutation.dart';
-import 'package:vgbnd/sync/object_mutation.dart';
 import 'package:vgbnd/sync/repository/local_repository.dart';
 import 'package:vgbnd/sync/repository/remote_repository.dart';
 import 'package:vgbnd/sync/schema.dart';
-import 'package:vgbnd/sync/sync.dart';
+import 'package:vgbnd/sync/sync_pending_remote_mutation.dart';
 
 import '../sync_object.dart';
 import 'mutation_handlers.dart';
@@ -58,7 +56,7 @@ class DefaultRemoteMutationHandler<T extends SyncObject<T>> with RemoteMutationH
 
   @override
   Future<MutationResult> applyRemoteMutationResult(
-      ObjectMutationData mutData, List<RemoteSchemaChangelog> remoteChangelogs, LocalRepository localRepo) async{
+      SyncPendingRemoteMutation mutData, List<RemoteSchemaChangelog> remoteChangelogs, LocalRepository localRepo) async{
     final mutResult = _processRemoteChangelog(remoteChangelogs, localRepo.dbConn);
     switch (mutData.mutationType) {
       case SyncObjectMutationType.Create:
@@ -101,7 +99,7 @@ class DefaultRemoteMutationHandler<T extends SyncObject<T>> with RemoteMutationH
 
   @override
   Future<Result<List<RemoteSchemaChangelog>>> submitMutation(
-      ObjectMutationData mutData, LocalRepository localRepo, RemoteRepository remoteRepo) {
+      SyncPendingRemoteMutation mutData, LocalRepository localRepo, RemoteRepository remoteRepo) {
     // TODO: implement submitMutation
     throw UnimplementedError();
   }

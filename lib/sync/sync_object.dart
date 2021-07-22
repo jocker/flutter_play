@@ -24,8 +24,14 @@ abstract class SyncObject<T extends SyncObject<T>> {
 
   SyncSchema<T> getSchema();
 
-  PrimitiveValueHolder dumpValues() {
-    return getSchema().dumpObject(this as T);
+  PrimitiveValueHolder dumpValues({bool? includeId}) {
+    final values = getSchema().dumpObject(this as T);
+
+    if (includeId != true) {
+      values.remove(getSchema().idColumn?.name ?? "");
+    }
+
+    return values;
   }
 
   PrimitiveValueHolder diffFrom(SyncObject<T> other) {

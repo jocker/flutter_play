@@ -164,16 +164,25 @@ create table if not exists  _schema_info(
 	primary key(schema_name)
 );
 
-create table if not exists  _sync_pending_remote_mutations(
+create table if not exists _sync_pending_remote_mutations(
+    unique_id varchar(255) not null,
+    schema_name varchar(255) not null,
+    object_id integer not null,
+    mutation_type tinyint not null,
+    data text,
+    ts integer not null,
+    unique(schema_name, object_id)
+);
+
+create table if not exists _sync_failed_remote_mutations(
     unique_id varchar(255) not null,
     schema_name varchar(255) not null,
     object_id integer not null,
     mutation_type tinyint not null,
     data text,
     error_messages text,
-    status tinyint not null default 0,
-    rev_num integer not null,
-    unique(schema_name, object_id, rev_num)
+    status tinyint not null default 0
+    unique(schema_name, object_id)
 );
 
 create table if not exists  _sync_object_resolved_ids(
