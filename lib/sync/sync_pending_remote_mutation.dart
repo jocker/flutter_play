@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:vgbnd/constants/constants.dart';
 import 'package:vgbnd/data/db.dart';
+import 'package:vgbnd/ext.dart';
 import 'package:vgbnd/log.dart';
+import 'package:vgbnd/sync/mutation/default_local_mutation_handler.dart';
 import 'package:vgbnd/sync/schema.dart';
 import 'package:vgbnd/sync/sync_object.dart';
 import 'package:vgbnd/sync/value_holder.dart';
@@ -26,6 +28,7 @@ class SyncPendingRemoteMutation {
 
   static SyncPendingRemoteMutation fromModel(SyncObject instance, SyncObjectMutationType op) {
     return SyncPendingRemoteMutation(
+        uniqueId: uuidGenV4(),
         schemaName: instance.getSchema().schemaName,
         objectId: instance.id ?? 0,
         mutationType: op,
@@ -37,6 +40,7 @@ class SyncPendingRemoteMutation {
       json["data"] = jsonDecode(json["data"]);
     }
     return SyncPendingRemoteMutation(
+        uniqueId: json["unique_id"],
         schemaName: json["schema_name"],
         objectId: json["object_id"],
         mutationType: SyncObjectMutationType.values[json["mutation_type"]],
@@ -46,10 +50,6 @@ class SyncPendingRemoteMutation {
 
   static SyncPendingRemoteMutation? fromDbValues(Map<String, dynamic> dbValues) {
     final c = PrimitiveValueHolder.fromMap(dbValues);
-    final rawUUid = c.getValue<String>("uuid");
-    if (rawUUid == null) {
-      return null;
-    }
     final rawSchemaName = c.getValue<String>("schema_name");
     if (rawSchemaName == null) {
       return null;
@@ -57,10 +57,10 @@ class SyncPendingRemoteMutation {
 
     final rawObjectId = c.getValue<int>("object_id");
     final rawOp = c.getValue<int>("mutation_type");
-    final rawRevNum = c.getValue<int>("rev_num");
     final rawTs = c.getValue<int>("ts");
+    final uniqueId = c.getValue<String>("unique_id");
 
-    if (rawObjectId == null || rawOp == null || rawRevNum == null || rawTs == null) {
+    if (rawObjectId == null || rawOp == null ||  rawTs == null || uniqueId == null) {
       return null;
     }
 
@@ -73,8 +73,8 @@ class SyncPendingRemoteMutation {
       return null;
     }
 
-    final rec =
-        SyncPendingRemoteMutation(schemaName: rawSchemaName, objectId: rawObjectId, mutationType: op, ts: rawTs);
+    final rec = SyncPendingRemoteMutation(
+        schemaName: rawSchemaName, objectId: rawObjectId, mutationType: op, ts: rawTs, uniqueId: uniqueId);
 
     final rawData = c.getValue<String>("data");
     if (rawData != null) {
@@ -89,13 +89,19 @@ class SyncPendingRemoteMutation {
   }
 
   SyncPendingRemoteMutation(
-      {required this.schemaName, required this.objectId, required this.mutationType, this.data, required this.ts});
+      {required this.schemaName,
+      required this.objectId,
+      required this.mutationType,
+      this.data,
+      required this.ts,
+      required this.uniqueId});
 
   SchemaName schemaName;
   int objectId;
   SyncObjectMutationType mutationType;
   Map<String, dynamic>? data;
   int ts;
+  String uniqueId;
 
   String getSignature() {
     final str = "$schemaName-$objectId";
@@ -104,6 +110,7 @@ class SyncPendingRemoteMutation {
 
   Map<String, dynamic> toDbValues() {
     final values = {
+      "unique_id": uniqueId,
       "schema_name": schemaName,
       "object_id": objectId,
       "mutation_type": mutationType.index,
@@ -116,11 +123,26 @@ class SyncPendingRemoteMutation {
 
   Map<String, dynamic> toJson() {
     return {
+      "unique_id": uniqueId,
       "schema_name": schemaName,
       "object_id": objectId,
       "mutation_type": mutationType.index,
       "data": data,
       "ts": ts,
     };
+  }
+
+  MutationDataForCreate? getDataForCreate() {
+    if (this.data != null && this.mutationType == SyncObjectMutationType.Create) {
+      return MutationDataForCreate.fromDbJson(this.data!);
+    }
+    return null;
+  }
+
+  MutationDataForUpdate? getDataForUpdate() {
+    if (this.data != null && this.mutationType == SyncObjectMutationType.Update) {
+      return MutationDataForUpdate.fromDbJson(this.data!);
+    }
+    return null;
   }
 }

@@ -1,4 +1,3 @@
-
 import 'package:vgbnd/api/api.dart';
 import 'package:vgbnd/constants/constants.dart';
 import 'package:vgbnd/sync/repository/local_repository.dart';
@@ -58,6 +57,10 @@ abstract class RemoteMutationHandler<T> {
     }
   }
 
+  Future<bool> hasUnresolvedDependencies(SyncPendingRemoteMutation mutData, LocalRepository localRepo) async {
+    return false;
+  }
+
   // submit this changelog to the server
   Future<Result<List<RemoteSchemaChangelog>>> submitMutation(
       SyncPendingRemoteMutation mutData, LocalRepository localRepo, RemoteRepository remoteRepo);
@@ -66,8 +69,6 @@ abstract class RemoteMutationHandler<T> {
   Future<MutationResult> applyRemoteMutationResult(
       SyncPendingRemoteMutation mutData, List<RemoteSchemaChangelog> remoteChangelog, LocalRepository localRepo);
 }
-
-
 
 class _EmptyMutationHandler<T> with LocalMutationHandler<T>, RemoteMutationHandler<T> {
   @override
@@ -80,7 +81,6 @@ class _EmptyMutationHandler<T> with LocalMutationHandler<T>, RemoteMutationHandl
     throw UnimplementedError();
   }
 
-
   @override
   Future<SyncPendingRemoteMutation?> createMutation(LocalRepository localRepo, T instance, SyncObjectMutationType op) {
     // TODO: implement createMutation
@@ -88,13 +88,15 @@ class _EmptyMutationHandler<T> with LocalMutationHandler<T>, RemoteMutationHandl
   }
 
   @override
-  Future<MutationResult> applyRemoteMutationResult(SyncPendingRemoteMutation mutData, List<RemoteSchemaChangelog> remoteChangelog, LocalRepository localRepo) {
+  Future<MutationResult> applyRemoteMutationResult(
+      SyncPendingRemoteMutation mutData, List<RemoteSchemaChangelog> remoteChangelog, LocalRepository localRepo) {
     // TODO: implement applyRemoteMutationResult
     throw UnimplementedError();
   }
 
   @override
-  Future<Result<List<RemoteSchemaChangelog>>> submitMutation(SyncPendingRemoteMutation mutData, LocalRepository localRepo, RemoteRepository remoteRepo) {
+  Future<Result<List<RemoteSchemaChangelog>>> submitMutation(
+      SyncPendingRemoteMutation mutData, LocalRepository localRepo, RemoteRepository remoteRepo) {
     // TODO: implement submitMutation
     throw UnimplementedError();
   }

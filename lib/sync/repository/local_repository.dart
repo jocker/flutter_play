@@ -153,6 +153,10 @@ class LocalRepository with SyncObjectDatabaseStorage, SchemaInfoRepository {
     setSchemaIdCounter(schemaName, nextId);
     return nextId;
   }
+  
+  int? getResolvedId(String schemaName, int localId){
+    return dbConn.selectValue<int?>("select remote_id from _sync_object_resolved_ids where schema_name=? and local_id=?", [schemaName, localId]);
+  }
 }
 
 class SchemaChangedEvent {

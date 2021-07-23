@@ -109,14 +109,16 @@ class DbConn {
     return this is Transaction;
   }
 
-  runInTransaction(bool Function(Transaction tx) fn) {
+  bool runInTransaction(bool Function(Transaction tx) fn) {
     final tx = transaction();
     try {
       if (fn(tx)) {
         tx.commit();
+        return true;
       } else {
         tx.rollback();
       }
+      return false;
     } catch (e) {
       rethrow;
     } finally {
@@ -124,6 +126,7 @@ class DbConn {
         tx.rollback();
       }
     }
+    return false;
   }
 
   void execute(String sql, [List<Object?> parameters = const []]) {

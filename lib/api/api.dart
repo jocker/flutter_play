@@ -92,15 +92,8 @@ class Api {
         queryParams: queryParams, includeDeleted: includeDeleted);
   }
 
-  Future<Result<String>> updateSchemaObject(String schemaName, int id, Map<String, dynamic> values) async {
-    final req = ApiRequestBuilder(HttpMethod.PUT, "collections/$schemaName/$id").body(values);
-    final resp = await _execRequest(req);
-    final x = await resp.map<String>((body) async {
-      final rawJson = await body.bytesToString();
-      return rawJson;
-    });
-
-    return x;
+  Future<Result<List<RemoteSchemaChangelog>>> updateSchemaObject(String schemaName, int id, Object values) async {
+    return await _makeRequestForChangeset(HttpMethod.PUT, "collections/$schemaName/$id", payload: {"data": values});
   }
 
   Future<Result<List<RemoteSchemaChangelog>>> createSchemaObject(String schemaName, Map<String, dynamic> values) async {
@@ -163,9 +156,9 @@ class ApiRequestBuilder {
   UserAccount? _userAccount;
   Map<String, String> _headers = {"Accept": "application/json", "Content-Type": "application/json"};
 
-  static final _baseApiUri = 'https://apim.vagabondvending.com/api/public';
+  //static final _baseApiUri = 'https://apim.vagabondvending.com/api/public';
 
-  //static final _baseApiUri = 'http://192.168.100.152:3000/api/public';
+  static final _baseApiUri = 'http://192.168.100.152:3000/api/public';
 
   static Uri getUri(String path, [Map<String, String>? qsParams]) {
     if (path.startsWith("/")) {

@@ -57,16 +57,14 @@ mixin SyncObjectDatabaseStorage {
 
   bool insertObject(SyncObject obj, {DbConn? db, OnConflictDo? onConflict, List<String>? columns, bool? reload}) {
     final schema = obj.getSchema();
-    final insertColumns =
-        columns ?? schema.columns.where((element) => element.name != "id").map((e) => e.name).toList();
+    final idCol = schema.idColumn;
 
-    final Map<String, dynamic> insertValues = {};
-    for (final colName in insertColumns) {
-      final col = schema.getColumnByName(colName);
-      if (col == null) {
-        continue;
+    final insertValues = obj.dumpValues(includeId: false).toMap();
+
+    if (columns != null) {
+      for (final key in (insertValues.keys.toList()..removeWhere((colName) => !columns.contains(colName)))) {
+        insertValues.remove(key);
       }
-      insertValues[col.name] = col.readAttribute(obj);
     }
 
     if (db == null) {
@@ -74,7 +72,6 @@ mixin SyncObjectDatabaseStorage {
     }
 
     var id = 0;
-    final idCol = schema.idColumn;
     if (idCol != null) {
       insertValues.remove(idCol);
       id = getNextInsertId(schema.schemaName);
@@ -117,7 +114,7 @@ mixin SyncObjectDatabaseStorage {
       db = getDb();
     }
 
-    if (updateEntry(schema, id, values, db: db)) {
+    if (values.isEmpty || updateEntry(schema, id, values, db: db)) {
       return loadObjectById(schema, id, db: db);
     }
     return null;

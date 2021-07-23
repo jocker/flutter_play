@@ -117,8 +117,14 @@ class SyncEngineIsolate {
       return MutationResult.localFailure(message: "Couldn't create changeset for ${syncObject.getSchema().schemaName}");
     }
 
-    if (schema.remoteMutationHandler.canHandleMutationType(req.op)) {
-      if (_connectivityInfo.networkingEnabled) {
+    var needsRemoteSync = true;
+    if (req.op == SyncObjectMutationType.Delete && _localRepository.isLocalId(syncObject.getId())) {
+      // records which need to be deleted and which exist just locally need to be deleted from the local db without sending them to the server
+      needsRemoteSync = false;
+    }
+
+    if (needsRemoteSync && schema.remoteMutationHandler.canHandleMutationType(req.op)) {
+      if (_connectivityInfo.networkingEnabled && false) {
         Result<List<RemoteSchemaChangelog>>? remoteResult;
         try {
           remoteResult =
@@ -132,7 +138,8 @@ class SyncEngineIsolate {
         return res;
       } else {
         // enqueue this mutation for submitting it later
-        _localRepository.dbConn.insert(SyncPendingRemoteMutation.TABLE_NAME, mutData.toDbValues());
+        _localRepository.dbConn
+            .insert(SyncPendingRemoteMutation.TABLE_NAME, mutData.toDbValues(), onConflict: OnConflictDo.Replace);
       }
     }
 
@@ -173,7 +180,7 @@ class SyncEngineIsolate {
           // update the id in the database
           tx.update(parentSchema.schemaName, {idCol.name: repl.newId}, {idCol.name: repl.prevId});
           // mark this record as updated
-          mutResult.add(SyncObjectMutationType.Update, repl.object);
+          // mutResult.add(SyncObjectMutationType.Update, repl.object);
 
           // update all objects which reference this object with the new id
           SyncEngine.SYNC_SCHEMAS.forEach((schemaName) {
@@ -228,7 +235,7 @@ class SyncEngineIsolate {
       if (upserts.isNotEmpty) {
         for (final rec in upserts) {
           final schema = rec.getSchema();
-          tx.insert(schema.tableName, rec.dumpValues().toMap(), onConflict: OnConflictDo.Replace);
+          tx.insert(schema.tableName, rec.dumpValues(includeId: true).toMap(), onConflict: OnConflictDo.Replace);
           affectedSchemas.add(schema.schemaName);
         }
       }
@@ -426,6 +433,15 @@ class SyncEngine extends TaskRunner {
     return SqlResultSet.fromJson(cursorJson);
   }
 
+  Future<T?> loadObject<T extends SyncObject<T>>(SyncSchema<T> schema, {required int id}) async {
+    final res = (await select("select * from ${schema.tableName} where ${schema.idColumn?.name ?? "id"}=?", args: [id]))
+        .mapOf(schema);
+    if (res.length == 1) {
+      return res.first;
+    }
+    return null;
+  }
+
   Future<String> getLocalDatabasePath() async {
     final docsPath = (await getApplicationDocumentsDirectory()).path;
     final databasesPath = path.join(docsPath, "databases");
@@ -470,7 +486,7 @@ class _MutateSyncObjectMessage {
     return _MutateSyncObjectMessage(
       object.getSchema().schemaName,
       op,
-      object.dumpValues().toMap(),
+      object.dumpValues(includeId: true).toMap(),
     );
   }
 

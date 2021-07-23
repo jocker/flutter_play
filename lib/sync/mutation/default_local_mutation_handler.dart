@@ -52,19 +52,21 @@ class DefaultLocalMutationHandler<T extends SyncObject<T>> with LocalMutationHan
     }
 
     if (pendingMut != null) {
-      // is the previous or the new mutation is a delete, the new mutation will be also a delete
+      // delete + anything = delete
+      // anything + delete = delete
       if (op == SyncObjectMutationType.Delete || pendingMut.mutationType == SyncObjectMutationType.Delete) {
         pendingMut.mutationType = SyncObjectMutationType.Delete;
         return pendingMut;
       }
-
+      // create + update = create
       if (pendingMut.mutationType == SyncObjectMutationType.Create && op == SyncObjectMutationType.Update) {
         // replace the previous values with the new ones
         pendingMut.data = MutationDataForCreate(syncObj.dumpValues().toMap()).toDbJson();
       }
 
+      // update + update = update
       if (pendingMut.mutationType == SyncObjectMutationType.Update && op == SyncObjectMutationType.Update) {
-        final updateMutData = MutationDataForUpdate.fromDbJson(pendingMut.data!);
+        final updateMutData = pendingMut.getDataForUpdate()!;
         final mergedValues = HashMap<String, dynamic>();
         mergedValues.addAll(updateMutData.snapshot.data);
         for (final rev in updateMutData.revisions) {
@@ -114,11 +116,16 @@ class DefaultLocalMutationHandler<T extends SyncObject<T>> with LocalMutationHan
 
     switch (mutData.mutationType) {
       case SyncObjectMutationType.Create:
-        throw UnsupportedError("");
-        //rec = localRepo.insertObject(schema, mutData.data!) as T;
+        rec = schema.instantiate(mutData.getDataForCreate()!.data);
+        schema.idColumn?.writeValue(rec, mutData.objectId);
+
+        if (!localRepo.insertObject(rec, reload: true)) {
+          rec = null;
+        }
+
         break;
       case SyncObjectMutationType.Update:
-        rec = localRepo.updateObject(schema, mutData.objectId, mutData.data!) as T;
+        rec = localRepo.updateObject(schema, mutData.objectId, mutData.getDataForUpdate()!.mergedRevisionData()) as T;
         break;
       case SyncObjectMutationType.Delete:
         rec = localRepo.loadObjectById(schema, mutData.objectId);
@@ -167,7 +174,7 @@ class MutationDataForUpdate {
   static MutationDataForUpdate create(Map<String, dynamic> snapshotData, Map<String, dynamic> revisionData) {
     final now = DateTime.now().millisecondsSinceEpoch;
     return MutationDataForUpdate(
-        UpdateMutationDataSegment(now, snapshotData), [UpdateMutationDataSegment(now, revisionData)]);
+        UpdateMutationDataSegment(now - 1, snapshotData), [UpdateMutationDataSegment(now, revisionData)]);
   }
 
   static MutationDataForUpdate fromDbJson(Map<String, dynamic> json) {
@@ -184,6 +191,14 @@ class MutationDataForUpdate {
 
   addNewRevision(Map<String, dynamic> revData) {
     this.revisions.add(UpdateMutationDataSegment(DateTime.now().millisecondsSinceEpoch, revData));
+  }
+
+  Map<String, dynamic> mergedRevisionData() {
+    final Map<String, dynamic> values = {};
+    for (final rev in revisions) {
+      values.addAll(rev.data);
+    }
+    return values;
   }
 }
 

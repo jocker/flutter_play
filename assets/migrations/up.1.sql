@@ -181,7 +181,7 @@ create table if not exists _sync_failed_remote_mutations(
     mutation_type tinyint not null,
     data text,
     error_messages text,
-    status tinyint not null default 0
+    status tinyint not null default 0,
     unique(schema_name, object_id)
 );
 
@@ -241,8 +241,8 @@ select
     ifnull(columns.capacity, 0) as par_value,
     columns.active as active,
     columns.last_fill as last_fill,
-    (select sum(unit_count) from pack_entries where column_id=columns.id and ifnull(restock_id, 0)=0 ) as pack_units_count,
-    (select sum(unit_count) from pack_entries where column_id=columns.id and ifnull(restock_id, 0)=0 and ifnull(pack_id, 0) <= 0 ) as local_pack_units_count,
+    (select sum(unitcount) from pack_entries where column_id=columns.id and ifnull(restock_id, 0)=0 ) as pack_units_count,
+    (select sum(unitcount) from pack_entries where column_id=columns.id and ifnull(restock_id, 0)=0 and ifnull(pack_id, 0) <= 0 ) as local_pack_units_count,
     (select sum(unit_count) from restock_entries where column_id=columns.id ) as restock_units_count,
     case when active=1 then (select sum(units_sold_since) from machine_column_sales where machine_column_sales.location_id=columns.location_id and machine_column_sales.machine_column=columns.column_name and last_sale_date > columns.last_visit) else 0 end as sold_units_count
 from columns

@@ -12,7 +12,6 @@ import 'package:vgbnd/models/productlocation.dart';
 import 'package:vgbnd/sync/sync_object.dart';
 import 'package:vgbnd/sync/value_holder.dart';
 
-import 'mutation/mutation.dart';
 import 'mutation/mutation_handlers.dart';
 
 typedef SchemaName = String;
@@ -25,7 +24,7 @@ class SchemaVersion {
 }
 
 class SyncColumn<T> {
-  static SyncColumn<T> readonly<T extends SyncObject<T>>(String colName, {ReferenceOfSchema? referenceOf}) {
+  static SyncColumn<T> readonly<T>(String colName, {ReferenceOfSchema? referenceOf}) {
     return SyncColumn<T>(
       "id",
       referenceOf: referenceOf,
@@ -54,6 +53,7 @@ class SyncColumn<T> {
   ReferenceOfSchema? referenceOf;
   Function(PrimitiveValueHolder value, String key, T dest) assignAttribute;
   dynamic Function(T dest) readAttribute;
+
   List<SyncSchemaOp> syncOps;
 
   SyncColumn(this.name,
@@ -62,7 +62,9 @@ class SyncColumn<T> {
       this.syncOps = const [SyncSchemaOp.RemoteRead, SyncSchemaOp.RemoteWrite],
       this.referenceOf});
 
-  assign() {}
+  writeValue(T dest, Object value) {
+    assignAttribute(PrimitiveValueHolder.fromMap({this.name: value}), this.name, dest);
+  }
 }
 
 class SyncSchema<T extends SyncObject<T>> {
@@ -174,6 +176,10 @@ class SyncSchema<T extends SyncObject<T>> {
 
   List<SyncColumn<T>> get remoteWriteableColumns {
     return columns.where((element) => element.syncOps.contains(SyncSchemaOp.RemoteWrite)).toList(growable: false);
+  }
+
+  List<SyncColumn<T>> get remoteReferenceColumns {
+    return remoteWriteableColumns.where((col) => col.referenceOf != null).toList(growable: false);
   }
 
   T instantiate(Map<String, dynamic>? values) {

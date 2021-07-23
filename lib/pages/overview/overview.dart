@@ -1,19 +1,15 @@
-
 import 'package:flutter/material.dart';
 import 'package:vgbnd/api/api.dart';
 import 'package:vgbnd/constants/constants.dart';
 import 'package:vgbnd/models/location.dart';
 import 'package:vgbnd/sync/sync.dart';
 
-
 class OverviewPage extends StatelessWidget {
   OverviewPage() {
     _doStuff();
   }
 
-  _doStuff() async {
-
-  }
+  _doStuff() async {}
 
   @override
   Widget build(BuildContext context) {
@@ -23,23 +19,20 @@ class OverviewPage extends StatelessWidget {
           SizedBox(
             height: 40,
           ),
-          Stack(
-            children: [
-              SizedBox(
-                child: CircularProgressIndicator(
-                  strokeWidth: 5,
-                ),
-                height: 62,
-                width: 62,
-              ),
-              Positioned(top: 3, left: 3, child: FloatingActionButton(onPressed: () {}))
-            ],
+          TextButton(
+            child: Text("UPDATE LOCATION"),
+            onPressed: () async {
+
+              final loc = (await SyncEngine.current().loadObject(Location.schema, id: 234934))!;
+              loc.locationName = "Loc ${DateTime.now().millisecondsSinceEpoch}";
+
+              final x = await SyncEngine.current().mutateObject(loc, SyncObjectMutationType.Update);
+              print("fone");
+            },
           ),
           TextButton(
-            child: Text("CREATE"),
+            child: Text("CREATE LOCATION"),
             onPressed: () async {
-              final api = Api(UserAccount.current);
-
               final loc = new Location();
               loc.locationName = "test sync";
 
