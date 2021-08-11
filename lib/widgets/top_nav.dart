@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:vgbnd/sync/sync.dart';
 
 AppBar buildTopNav(BuildContext context, GlobalKey<ScaffoldState> key) {
   return AppBar(
@@ -10,9 +11,9 @@ AppBar buildTopNav(BuildContext context, GlobalKey<ScaffoldState> key) {
             "Dashboard",
             style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           )),
-
         ],
       ),
+      actions: [SyncButtonWidget()],
       leading: _buildLeading(context, key));
 }
 
@@ -40,4 +41,59 @@ Widget _buildLeading(BuildContext context, GlobalKey<ScaffoldState> key) {
           ))
     ],
   );
+}
+
+class SyncButtonWidget extends StatefulWidget {
+  @override
+  _SyncButtonWidgetState createState() => _SyncButtonWidgetState();
+}
+
+class _SyncButtonWidgetState extends State<SyncButtonWidget> with SingleTickerProviderStateMixin {
+  var _isLoading = false;
+  late AnimationController animationController;
+
+  @override
+  void initState() {
+    super.initState();
+    animationController = new AnimationController(
+      vsync: this,
+      duration: new Duration(seconds: 1),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final VoidCallback? onPressed = _isLoading
+        ? null
+        : () {
+            _triggerSync();
+          };
+
+    return AnimatedBuilder(
+      animation: animationController,
+      child: IconButton(onPressed: onPressed, icon: Icon(Icons.sync)),
+      builder: (context, child) {
+        return Transform.rotate(
+          angle: animationController.value * 6.3,
+          child: child,
+        );
+      },
+    );
+  }
+
+  _triggerSync() async {
+    setState(() {
+      _isLoading = true;
+      animationController.repeat();
+    });
+    await SyncEngine.current().invalidateLocalCache();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _isLoading = false;
+      animationController.stop();
+      animationController.reset();
+    });
+  }
 }

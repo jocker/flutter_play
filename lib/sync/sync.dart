@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:mutex/mutex.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 import 'package:vgbnd/api/api.dart';
@@ -11,6 +12,8 @@ import 'package:vgbnd/bkg/task_runner.dart';
 import 'package:vgbnd/constants/constants.dart';
 import 'package:vgbnd/data/db.dart';
 import 'package:vgbnd/data/sql_result_set.dart';
+import 'package:vgbnd/ext.dart';
+import 'package:vgbnd/helpers/sql_select_query.dart';
 import 'package:vgbnd/models/coil.dart';
 import 'package:vgbnd/models/location.dart';
 import 'package:vgbnd/models/machine_column_sales.dart';
@@ -18,6 +21,8 @@ import 'package:vgbnd/models/pack.dart';
 import 'package:vgbnd/models/pack_entry.dart';
 import 'package:vgbnd/models/product.dart';
 import 'package:vgbnd/models/productlocation.dart';
+import 'package:vgbnd/models/restock.dart';
+import 'package:vgbnd/models/restock_entry.dart';
 import 'package:vgbnd/sync/repository/remote_repository.dart';
 import 'package:vgbnd/sync/schema.dart';
 import 'package:vgbnd/sync/sync_object.dart';
@@ -32,7 +37,8 @@ const _MESSAGE_TYPE_PULL_CHANGES = "pull_changes",
     _MESSAGE_TYPE_WATCH_SCHEMA_CHANGED = "watch_schema_changed",
     _MESSAGE_TYPE_SET_CONN_INFO = "set_conn_info",
     _MESSAGE_TYPE_MUTATE_SYNC_OBJECT = "mutate_sync_object",
-    _MESSAGE_TYPE_FETCH_CURSOR = "fetch_cursor";
+    _MESSAGE_TYPE_FETCH_CURSOR = "fetch_cursor",
+    _MESSAGE_TYPE_CREATE_QUERY_SNAPSHOT = "create_query_snapshot";
 
 class SyncEngineIsolate {
   late final LocalRepository _localRepository;
@@ -117,6 +123,10 @@ class SyncEngineIsolate {
       return MutationResult.localFailure(message: "Couldn't create changeset for ${syncObject.getSchema().schemaName}");
     }
 
+    if (mutData.isEmpty) {
+      //return MutationResult(SyncStorageType.Remote)..setSuccessful(true);
+    }
+
     var needsRemoteSync = true;
     if (req.op == SyncObjectMutationType.Delete && _localRepository.isLocalId(syncObject.getId())) {
       // records which need to be deleted and which exist just locally need to be deleted from the local db without sending them to the server
@@ -124,7 +134,7 @@ class SyncEngineIsolate {
     }
 
     if (needsRemoteSync && schema.remoteMutationHandler.canHandleMutationType(req.op)) {
-      if (_connectivityInfo.networkingEnabled && false) {
+      if (_connectivityInfo.networkingEnabled) {
         Result<List<RemoteSchemaChangelog>>? remoteResult;
         try {
           remoteResult =
@@ -132,10 +142,15 @@ class SyncEngineIsolate {
         } on RemoteMutationException catch (e) {
           return e.asMutationResult();
         }
-        final res =
-            await schema.remoteMutationHandler.applyRemoteMutationResult(mutData, remoteResult.body!, _localRepository);
-        _applyMutationResult(res);
-        return res;
+
+        if (remoteResult.isSuccess) {
+          final res = await schema.remoteMutationHandler
+              .applyRemoteMutationResult(mutData, remoteResult.body ?? [], _localRepository);
+          _applyMutationResult(res);
+          return res;
+        }
+
+        return MutationResult.remoteFailure(message: remoteResult.errorMessage ?? "Unexpected failure");
       } else {
         // enqueue this mutation for submitting it later
         _localRepository.dbConn
@@ -204,11 +219,10 @@ class SyncEngineIsolate {
         final schemaDels = HashMap<String, List<int>>();
         for (final rec in delRecords.values) {
           final schema = rec.getSchema();
-          final idCol = schema.idColumn;
-          if (idCol == null) {
+          final recId = rec.getId();
+          if (recId == 0) {
             continue;
           }
-          final recId = idCol.readAttribute(rec);
           if (!schemaDels.containsKey(schema.schemaName)) {
             schemaDels[schema.schemaName] = [recId];
           } else {
@@ -247,7 +261,7 @@ class SyncEngineIsolate {
       affectedSchemas.clear();
       return false;
     }
-
+    print("aaaa");
     affectedSchemas.forEach((schemaName) {
       _localRepository.localSchemaInfos[schemaName]?.invalidateVersion();
     });
@@ -255,6 +269,9 @@ class SyncEngineIsolate {
   }
 
   _collectReferencesToObject(SyncObject rec, Map<String, SyncObject> dest, DbConn db) {
+    if (rec.isNewRecord()) {
+      return;
+    }
     final recSchema = rec.getSchema();
     final key = "${recSchema.schemaName}-${rec.id}";
     if (dest.containsKey(key)) {
@@ -311,7 +328,12 @@ class SyncEngineIsolate {
 
         final cursor = this._localRepository.dbConn.select(msg.sql, msg.args);
         return cursor.toJson();
-
+      case _MESSAGE_TYPE_CREATE_QUERY_SNAPSHOT:
+        final msg = message.args as _CreateQuerySnapshotMessage;
+        final tableName = "__temp_${uuidGenV4().replaceAll("-", "")}";
+        final sql = "create table $tableName as ${msg.sql}";
+        this._localRepository.dbConn.execute(sql, msg.args);
+        return tableName;
       default:
         throw Exception("SyncEngineBackEnd doesn't know how to handle ${message.type}");
     }
@@ -340,7 +362,9 @@ class SyncEngine extends TaskRunner {
     ProductLocation.SCHEMA_NAME,
     MachineColumnSale.SCHEMA_NAME,
     Pack.SCHEMA_NAME,
-    PackEntry.SCHEMA_NAME
+    PackEntry.SCHEMA_NAME,
+    Restock.SCHEMA_NAME,
+    RestockEntry.SCHEMA_NAME,
   ];
 
   static _runTasks(SetupMessage setupMessage) async {
@@ -423,6 +447,11 @@ class SyncEngine extends TaskRunner {
     return controller.stream;
   }
 
+  Future<MutationResult> upsertObject(SyncObject obj) async {
+    final op = obj.isNewRecord() ? SyncObjectMutationType.Create : SyncObjectMutationType.Update;
+    return await mutateObject(obj, op);
+  }
+
   Future<MutationResult> mutateObject(SyncObject obj, SyncObjectMutationType op) async {
     return await this.exec(_MESSAGE_TYPE_MUTATE_SYNC_OBJECT, args: _MutateSyncObjectMessage.forObject(obj, op));
   }
@@ -433,11 +462,33 @@ class SyncEngine extends TaskRunner {
     return SqlResultSet.fromJson(cursorJson);
   }
 
-  Future<T?> loadObject<T extends SyncObject<T>>(SyncSchema<T> schema, {required int id}) async {
-    final res = (await select("select * from ${schema.tableName} where ${schema.idColumn?.name ?? "id"}=?", args: [id]))
-        .mapOf(schema);
+  final _snapshotMux = Mutex();
+  final _snapshots = HashMap<String, String>();
+
+  Future<SqlSelectQueryBuilder> createQuerySnapshot(SqlSelectQueryBuilder queryBuilder) async {
+    final query = queryBuilder.build();
+    final queryKey = query.signature();
+
+    await _snapshotMux.acquire();
+
+    try {
+      if(!_snapshots.containsKey(queryKey)){
+        _snapshots[queryKey] = await this.exec(_MESSAGE_TYPE_CREATE_QUERY_SNAPSHOT,
+            args: _CreateQuerySnapshotMessage(query.sql, query.args ?? []));
+      }
+
+      return queryBuilder.forSnapshot(_snapshots[queryKey]!);
+    } finally {
+      _snapshotMux.release();
+    }
+  }
+
+  Future<dynamic> loadObject(SyncSchema schema, {required int id}) async {
+    final res =
+        (await select("select * from ${schema.tableName} where ${schema.idColumn?.name ?? "id"}=?", args: [id]));
+
     if (res.length == 1) {
-      return res.first;
+      return schema.instantiate(res.first.toMap());
     }
     return null;
   }
@@ -483,11 +534,7 @@ class _MutateSyncObjectMessage {
   _MutateSyncObjectMessage(this.schemaName, this.op, this.syncObjectAttrs);
 
   static _MutateSyncObjectMessage forObject(SyncObject object, SyncObjectMutationType op) {
-    return _MutateSyncObjectMessage(
-      object.getSchema().schemaName,
-      op,
-      object.dumpValues(includeId: true).toMap(),
-    );
+    return _MutateSyncObjectMessage(object.getSchema().schemaName, op, object.toJson());
   }
 
   SyncObject? getObject() {
@@ -502,11 +549,11 @@ class _FetchCursorMessage {
   _FetchCursorMessage(this.sql, this.args);
 }
 
-class _FetchCursorReply {
-  List<String> headers;
-  List<List<Object?>> rows;
+class _CreateQuerySnapshotMessage {
+  final String sql;
+  final List<Object?> args;
 
-  _FetchCursorReply(this.headers, this.rows);
+  _CreateQuerySnapshotMessage(this.sql, this.args);
 }
 
 //  {"pack":{"ts":1626771132580,"data":[{"product_id":88894,"column_id":727228,"unitcount":8},{"product_id":88922,"column_id":727229,"unitcount":8}]}}

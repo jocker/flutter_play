@@ -1,4 +1,4 @@
-enum SyncSchemaOp { RemoteRead, RemoteWrite }
+enum SyncSchemaOp { RemoteRead, RemoteWrite, RemoteNone }
 enum SyncObjectMutationType { None, Create, Update, Delete }
 enum SyncObjectPersistenceState {
   Unknown,

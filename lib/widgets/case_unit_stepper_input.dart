@@ -8,14 +8,16 @@ class CaseUnitStepperInput extends StatefulWidget {
   late final bool showCases;
   final int id;
   late final ValueChanged<int?>? onChanged;
+  late final int minValue;
 
   CaseUnitStepperInput(this.id,
-      {Key? key, int? caseSize, int? initialUnitCount, int? unitCount, bool? showCases, this.onChanged})
+      {Key? key, int? caseSize, int? initialUnitCount, int? unitCount, bool? showCases, int? minValue, this.onChanged})
       : super(key: key) {
     this.caseSize = caseSize ?? 1;
     this.initialUnitCount = initialUnitCount;
     this.unitCount = unitCount;
     this.showCases = showCases ?? false;
+    this.minValue = minValue ?? 1;
   }
 
   @override
@@ -226,10 +228,8 @@ class _CaseUnitStepperInputState extends State<CaseUnitStepperInput> {
   }
 
   int? _sanitizeUnitCount(int? unitCount) {
-    if ((unitCount ?? 0) < 0) {
-      unitCount = 0;
-    }
-    if (unitCount == 0) {
+    final minValue = widget.minValue;
+    if ((unitCount ?? minValue-1) < minValue) {
       unitCount = null;
     }
     return unitCount;

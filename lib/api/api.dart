@@ -1,9 +1,9 @@
 import 'dart:collection';
 import 'dart:convert';
 
-import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:uri/uri.dart';
+import 'package:vgbnd/ext.dart';
 import 'package:vgbnd/sync/schema.dart';
 import 'package:vgbnd/sync/sync_object.dart';
 
@@ -104,10 +104,17 @@ class Api {
     return await _makeRequestForChangeset(HttpMethod.DELETE, "collections/$schemaName/$objectId");
   }
 
-  Future<Result<List<RemoteSchemaChangelog>>> postRequestForChangeset(String urlPath, Object payload, {Map<String, String>? queryParams}){
-    return _makeRequestForChangeset(HttpMethod.POST, urlPath, payload: payload, includeDeleted: true, queryParams: queryParams);
+  Future<Result<List<RemoteSchemaChangelog>>> postRequestForChangeset(String urlPath, Object payload,
+      {Map<String, String>? queryParams}) {
+    return _makeRequestForChangeset(HttpMethod.POST, urlPath,
+        payload: payload, includeDeleted: true, queryParams: queryParams);
   }
 
+  Future<Result<List<RemoteSchemaChangelog>>> makeRequestForChangeset(
+      {required HttpMethod httpMethod, required String urlPath, Object? payload, Map<String, String>? queryParams}) {
+    return _makeRequestForChangeset(httpMethod, urlPath,
+        payload: payload, includeDeleted: true, queryParams: queryParams);
+  }
 
   Future<Result<List<RemoteSchemaChangelog>>> _makeRequestForChangeset(HttpMethod httpMethod, String urlPath,
       {Object? payload, bool? includeDeleted, Map<String, String>? queryParams}) async {
@@ -457,7 +464,7 @@ class UserAccount {
   sign(ApiRequestBuilder req) {
     final xdate = DateTime.now().millisecondsSinceEpoch.toString();
     final toSign = "$password$xdate";
-    final encoded = md5.convert(utf8.encode(toSign)).toString();
+    final encoded = md5Digest(toSign);
     final authToken = "$email:$encoded";
 
     final authHeaderName = "XAUTHENTICATION";

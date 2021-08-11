@@ -9,6 +9,7 @@ class Product extends SyncObject<Product> {
     SyncColumn.id(),
     SyncColumn<Product>(
       "name",
+      isDisplayNameColumn: true,
       readAttribute: (dest) => dest.name,
       assignAttribute: (value, key, dest) {
         dest.name = value.getValue(key) ?? dest.name;

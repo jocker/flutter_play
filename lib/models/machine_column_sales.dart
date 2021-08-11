@@ -8,6 +8,7 @@ class MachineColumnSale extends SyncObject<MachineColumnSale> {
   String? machineColumn;
   int? locationId;
   int? unitcount;
+  int? productId;
   double? lastSaleCashAmount;
   int? lastSaleUnitCount;
   int? unitsSoldSince;
@@ -15,14 +16,70 @@ class MachineColumnSale extends SyncObject<MachineColumnSale> {
   DateTime? lastSaleDate;
 
   static final schema = SyncSchema<MachineColumnSale>(SCHEMA_NAME, allocate: () => MachineColumnSale(), columns: [
-    SyncColumn.readonly("machinecolumn"),
-    SyncColumn.readonly("location_id",
-        referenceOf: ReferenceOfSchema(Location.SCHEMA_NAME, onDeleteReferenceDo: OnDeleteReferenceDo.Delete)),
-    SyncColumn.readonly("unitcount"),
-    SyncColumn.readonly("last_sale_cash_amount"),
-    SyncColumn.readonly("last_sale_unit_count"),
-    SyncColumn.readonly("units_sold_since"),
-    SyncColumn.readonly("last_sale_date"),
+    SyncColumn(
+      "machinecolumn",
+      readAttribute: (dest) {
+        return dest.machineColumn;
+      },
+      assignAttribute: (value, key, dest) {
+        dest.machineColumn = value.getValue(key);
+      },
+    ),
+    SyncColumn("product_id", readAttribute: (dest) {
+      return dest.productId;
+    }, assignAttribute: (value, key, dest) {
+      dest.productId = value.getValue(key);
+    }, referenceOf: ReferenceOfSchema(Location.SCHEMA_NAME, onDeleteReferenceDo: OnDeleteReferenceDo.Delete)),
+    SyncColumn("location_id", readAttribute: (dest) {
+      return dest.locationId;
+    }, assignAttribute: (value, key, dest) {
+      dest.locationId = value.getValue(key);
+    }, referenceOf: ReferenceOfSchema(Location.SCHEMA_NAME, onDeleteReferenceDo: OnDeleteReferenceDo.Delete)),
+    SyncColumn(
+      "cash_amount_since",
+      readAttribute: (dest) {
+        return dest.cashAmountSince;
+      },
+      assignAttribute: (value, key, dest) {
+        dest.cashAmountSince = value.getValue(key);
+      },
+    ),
+    SyncColumn(
+      "units_sold_since",
+      readAttribute: (dest) {
+        return dest.unitsSoldSince;
+      },
+      assignAttribute: (value, key, dest) {
+        dest.unitsSoldSince = value.getValue(key);
+      },
+    ),
+    SyncColumn(
+      "last_sale_cash_amount",
+      readAttribute: (dest) {
+        return dest.lastSaleCashAmount;
+      },
+      assignAttribute: (value, key, dest) {
+        dest.lastSaleCashAmount = value.getValue(key);
+      },
+    ),
+    SyncColumn(
+      "last_sale_unit_count",
+      readAttribute: (dest) {
+        return dest.lastSaleUnitCount;
+      },
+      assignAttribute: (value, key, dest) {
+        dest.lastSaleUnitCount = value.getValue(key);
+      },
+    ),
+    SyncColumn(
+      "last_sale_date",
+      readAttribute: (dest) {
+        return dest.lastSaleDate;
+      },
+      assignAttribute: (value, key, dest) {
+        dest.lastSaleDate = value.getValue(key);
+      },
+    ),
   ]);
 
   @override

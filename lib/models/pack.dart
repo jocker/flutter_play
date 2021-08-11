@@ -10,6 +10,7 @@ final _packMutationHandler = PackMutationHandler();
 
 class Pack extends SyncObject<Pack> {
   static const SchemaName SCHEMA_NAME = 'packs';
+  static const String _PACK_ENTRIES_ATTR = "__pack_entries";
 
   int? locationId;
   int? restockId;
@@ -17,14 +18,7 @@ class Pack extends SyncObject<Pack> {
   List<PackEntry>? entries;
 
   static Pack? fromJson(Map<String, dynamic> values) {
-    final pack = SyncObject.fromJson<Pack>(values);
-    if (pack != null) {
-      if (values["_pack_entries"] != null) {
-        pack.entries = (values["_pack_entries"] as List).map((e) => SyncObject.fromJson<PackEntry>(e)!).toList();
-      }
-    }
-
-    return pack;
+    return SyncObject.fromJson<Pack>(values);
   }
 
   static final schema = SyncSchema<Pack>(SCHEMA_NAME,
@@ -59,11 +53,18 @@ class Pack extends SyncObject<Pack> {
   @override
   Map<String, dynamic> toJson() {
     final values = super.toJson();
-    final packEntries = this.entries;
-    if (packEntries != null) {
-      values["_pack_entries"] = packEntries.map((e) => e.toJson()).toList();
-    }
-
+    values[_PACK_ENTRIES_ATTR] = List.from(this.entries?.map((e) => e.toJson()) ?? []);
     return values;
+  }
+
+  @override
+  assignValues(Map<String, dynamic>? values) {
+    super.assignValues(values);
+    if (values == null) {
+      return;
+    }
+    if (values[_PACK_ENTRIES_ATTR] is List) {
+      this.entries = (values[_PACK_ENTRIES_ATTR] as List).map((e) => PackEntry.schema.instantiate(e as Map<String, dynamic>)).toList();
+    }
   }
 }

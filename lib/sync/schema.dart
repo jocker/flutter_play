@@ -1,6 +1,4 @@
-import 'package:vgbnd/api/api.dart';
 import 'package:vgbnd/constants/constants.dart';
-import 'package:vgbnd/data/db.dart';
 import 'package:vgbnd/ext.dart';
 import 'package:vgbnd/models/coil.dart';
 import 'package:vgbnd/models/location.dart';
@@ -9,6 +7,9 @@ import 'package:vgbnd/models/pack.dart';
 import 'package:vgbnd/models/pack_entry.dart';
 import 'package:vgbnd/models/product.dart';
 import 'package:vgbnd/models/productlocation.dart';
+import 'package:vgbnd/models/restock.dart';
+import 'package:vgbnd/models/restock_entry.dart';
+import 'package:vgbnd/sync/mutation/default_remote_mutation_handler.dart';
 import 'package:vgbnd/sync/sync_object.dart';
 import 'package:vgbnd/sync/value_holder.dart';
 
@@ -26,7 +27,7 @@ class SchemaVersion {
 class SyncColumn<T> {
   static SyncColumn<T> readonly<T>(String colName, {ReferenceOfSchema? referenceOf}) {
     return SyncColumn<T>(
-      "id",
+      colName,
       referenceOf: referenceOf,
       readAttribute: (dest) => throw UnsupportedError("unsupported"),
       assignAttribute: (value, key, dest) {
@@ -56,11 +57,16 @@ class SyncColumn<T> {
 
   List<SyncSchemaOp> syncOps;
 
+  late final bool isDisplayNameColumn;
+
   SyncColumn(this.name,
       {required this.assignAttribute,
       required this.readAttribute,
       this.syncOps = const [SyncSchemaOp.RemoteRead, SyncSchemaOp.RemoteWrite],
-      this.referenceOf});
+      this.referenceOf,
+      bool? isDisplayNameColumn}) {
+    this.isDisplayNameColumn = isDisplayNameColumn ?? false;
+  }
 
   writeValue(T dest, Object value) {
     assignAttribute(PrimitiveValueHolder.fromMap({this.name: value}), this.name, dest);
@@ -132,6 +138,10 @@ class SyncSchema<T extends SyncObject<T>> {
         return Pack.schema;
       case PackEntry.SCHEMA_NAME:
         return PackEntry.schema;
+      case Restock.SCHEMA_NAME:
+        return Restock.schema;
+      case RestockEntry.SCHEMA_NAME:
+        return RestockEntry.schema;
     }
 
     return null;
@@ -156,7 +166,7 @@ class SyncSchema<T extends SyncObject<T>> {
     this.tableName = tableName ?? this.schemaName;
     this.syncOps = syncOps ?? [SyncSchemaOp.RemoteRead, SyncSchemaOp.RemoteWrite];
     this.localMutationHandler = localMutationHandler ?? LocalMutationHandler.basic();
-    this.remoteMutationHandler = remoteMutationHandler ?? RemoteMutationHandler.empty<T>();
+    this.remoteMutationHandler = remoteMutationHandler ?? DefaultRemoteMutationHandler<T>();
   }
 
   PrimitiveValueHolder getValues(T obj) {
@@ -184,7 +194,7 @@ class SyncSchema<T extends SyncObject<T>> {
 
   T instantiate(Map<String, dynamic>? values) {
     T instance = allocate();
-    assignValues(instance, values);
+    instance.assignValues(values);
     return instance;
   }
 
@@ -203,11 +213,6 @@ class SyncSchema<T extends SyncObject<T>> {
       m.putValue(col.name, col.readAttribute(instance));
     }
     return m;
-  }
-
-  onChangesetApplied(RemoteSchemaChangelog changeset, Transaction tx) {
-    // any cleanup that should happen after the changeset data is saved in the db
-    // this should be a quick operation as we don't want to keep the database locked for a long period of time
   }
 }
 

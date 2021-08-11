@@ -60,7 +60,7 @@ class SyncPendingRemoteMutation {
     final rawTs = c.getValue<int>("ts");
     final uniqueId = c.getValue<String>("unique_id");
 
-    if (rawObjectId == null || rawOp == null ||  rawTs == null || uniqueId == null) {
+    if (rawObjectId == null || rawOp == null || rawTs == null || uniqueId == null) {
       return null;
     }
 
@@ -139,10 +139,21 @@ class SyncPendingRemoteMutation {
     return null;
   }
 
+  MutationDataForCreate? getDataForDelete() {
+    if (this.data != null && this.mutationType == SyncObjectMutationType.Delete) {
+      return MutationDataForCreate.fromDbJson(this.data!);
+    }
+    return null;
+  }
+
   MutationDataForUpdate? getDataForUpdate() {
     if (this.data != null && this.mutationType == SyncObjectMutationType.Update) {
       return MutationDataForUpdate.fromDbJson(this.data!);
     }
     return null;
+  }
+
+  bool get isEmpty {
+    return getDataForCreate()?.isEmpty ?? getDataForUpdate()?.isEmpty ?? getDataForDelete()?.isEmpty ?? true;
   }
 }

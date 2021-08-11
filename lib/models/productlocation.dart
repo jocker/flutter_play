@@ -28,14 +28,29 @@ class ProductLocation extends SyncObject<ProductLocation> {
 
   int? productId;
   int? locationId;
+  int? unitCount;
 
-  static final schema = SyncSchema<ProductLocation>(SCHEMA_NAME,
-      allocate: () => ProductLocation(),
-      columns: [
-        SyncColumn.readonly("product_id", referenceOf: ReferenceOfSchema(Product.SCHEMA_NAME, onDeleteReferenceDo: OnDeleteReferenceDo.Delete)),
-        SyncColumn.readonly("location_id", referenceOf: ReferenceOfSchema(Location.SCHEMA_NAME, onDeleteReferenceDo: OnDeleteReferenceDo.Delete)),
-        SyncColumn.readonly("unitcount"),
-      ]);
+  static final schema = SyncSchema<ProductLocation>(SCHEMA_NAME, allocate: () => ProductLocation(), columns: [
+    SyncColumn("product_id", readAttribute: (dest) {
+      return dest.productId;
+    }, assignAttribute: (value, key, dest) {
+      dest.productId = value.getValue(key);
+    }, referenceOf: ReferenceOfSchema(Product.SCHEMA_NAME, onDeleteReferenceDo: OnDeleteReferenceDo.Delete)),
+    SyncColumn("location_id", readAttribute: (dest) {
+      return dest.locationId;
+    }, assignAttribute: (value, key, dest) {
+      dest.locationId = value.getValue(key);
+    }, referenceOf: ReferenceOfSchema(Location.SCHEMA_NAME, onDeleteReferenceDo: OnDeleteReferenceDo.Delete)),
+    SyncColumn(
+      "unitcount",
+      readAttribute: (dest) {
+        return dest.unitCount;
+      },
+      assignAttribute: (value, key, dest) {
+        dest.unitCount = value.getValue(key);
+      },
+    ),
+  ]);
 
   @override
   SyncSchema<ProductLocation> getSchema() {

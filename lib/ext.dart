@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'dart:math';
 import 'dart:ui';
 
+import 'package:crypto/crypto.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:uuid/uuid.dart';
 import 'package:uuid/uuid_util.dart';
 
@@ -58,4 +61,30 @@ extension FirstWhereOrNullExtension<T> on Iterable<T> {
 
 Color generateRandomColor() {
   return Color((Random().nextDouble() * 0xFFFFFF).toInt()).withOpacity(1.0);
+}
+
+Widget emptyWidget() {
+  return SizedBox.shrink();
+}
+
+Widget verticalFabSpacer() {
+  return SizedBox(height: 66);
+}
+
+typedef Action1<T> = void Function(T arg);
+
+
+class Pair<T, Q> {
+  Pair(this.left, this.right);
+
+  final T left;
+  final Q right;
+
+  @override
+  String toString() => 'Pair[$left, $right]';
+}
+
+
+String md5Digest(String input){
+  return md5.convert(utf8.encode(input)).toString();
 }

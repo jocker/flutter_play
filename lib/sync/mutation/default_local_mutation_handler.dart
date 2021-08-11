@@ -1,5 +1,6 @@
 import 'dart:collection';
 
+import 'package:vgbnd/ext.dart';
 import 'package:vgbnd/sync/mutation/mutation_handlers.dart';
 import 'package:vgbnd/sync/repository/local_repository.dart';
 import 'package:vgbnd/sync/schema.dart';
@@ -163,6 +164,30 @@ class MutationDataForCreate {
       "data": this.data,
     };
   }
+
+  bool get isEmpty {
+    return false;
+  }
+}
+
+class MutationDataForDelete {
+  final Map<String, dynamic> data;
+
+  static MutationDataForDelete fromDbJson(Map<String, dynamic> json) {
+    return MutationDataForDelete(json["data"]);
+  }
+
+  MutationDataForDelete(this.data);
+
+  Map<String, dynamic> toDbJson() {
+    return {
+      "data": this.data,
+    };
+  }
+
+  bool get isEmpty {
+    return false;
+  }
 }
 
 class MutationDataForUpdate {
@@ -199,6 +224,10 @@ class MutationDataForUpdate {
       values.addAll(rev.data);
     }
     return values;
+  }
+
+  bool get isEmpty {
+    return this.revisions.firstWhereOrNull((element) => element.data.isNotEmpty) == null;
   }
 }
 

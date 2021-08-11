@@ -1,5 +1,7 @@
+import 'package:vgbnd/models/pack_entry.dart';
 import 'package:vgbnd/sync/mutation/default_remote_mutation_handler.dart';
 import 'package:vgbnd/sync/schema.dart';
+import 'package:vgbnd/sync/sync.dart';
 
 import '../sync/sync_object.dart';
 
@@ -13,6 +15,7 @@ class Location extends SyncObject<Location> {
         SyncColumn.id(),
         SyncColumn(
           "location_name",
+          isDisplayNameColumn: true,
           assignAttribute: (value, key, dest) {
             dest.locationName = value.getValue(key) ?? dest.locationName;
           },
@@ -174,6 +177,13 @@ class Location extends SyncObject<Location> {
           },
         )
       ]);
+
+  static Future<bool> hasUnsubmittedPacks(int locationId) async {
+    final res = await SyncEngine.current().select(
+        "select 1 from ${PackEntry.schema.tableName} where location_id=? and ifnull(restock_id, 0) = 0 limit 1",
+        args: [locationId]);
+    return res.size > 0;
+  }
 
   String? locationName;
   String? address;

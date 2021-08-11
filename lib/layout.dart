@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:vgbnd/api/api.dart';
 import 'package:vgbnd/controllers/app_section_controller.dart';
-import 'package:vgbnd/widgets/small_screen.dart';
+import 'package:vgbnd/pages/locations/locations_list.dart';
 import 'package:vgbnd/widgets/top_nav.dart';
 
 class SiteLayout extends StatelessWidget {
@@ -30,14 +30,10 @@ class SiteLayout extends StatelessWidget {
                       Text(
                         user.displayName,
                         textAlign: TextAlign.left,
-                        style: TextStyle(
-                          color: Colors.white,
-                        ),
                       ),
                       Text(
                         user.email,
                         textAlign: TextAlign.right,
-                        style: TextStyle(color: Colors.white),
                       )
                     ],
                   ),
@@ -50,7 +46,7 @@ class SiteLayout extends StatelessWidget {
                 child: Text("Log out", style: TextStyle(color: theme.primaryColor, fontSize: 16)), onPressed: () {})
           ],
         )),
-        body: SmallScreen());
+        body: LocationsList());
   }
 }
 

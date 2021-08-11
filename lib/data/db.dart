@@ -8,7 +8,7 @@ import 'package:vgbnd/data/sql_result_set.dart';
 class DbConn {
   static final int DB_VERSION = 1;
 
-  static String sqlIn(List items) {
+  static String buildSqlInCondition(List items) {
     final List<String> strList = List.filled(items.length, "null");
     items.asMap().forEach((key, value) {
       late String strValue;
@@ -180,14 +180,20 @@ class DbConn {
   }
 
   void upsert(String tableName, Map<String, dynamic> pkValues, Map<String, dynamic> values) {
-    update(tableName, values, pkValues);
+    if (update(tableName, values, pkValues)) {
+      return;
+    }
     if (this.affectedRowsCount == 0) {
       final merged = Map.of(pkValues)..addAll(values);
       insert(tableName, merged);
     }
   }
 
-  void update(String tableName, Map<String, dynamic> updateValues, [Map<String, dynamic>? whereArgs]) {
+  bool update(String tableName, Map<String, dynamic> updateValues, [Map<String, dynamic>? whereArgs]) {
+    if (whereArgs?.length == 1 && whereArgs!["id"] == 0) {
+      return false;
+    }
+
     List args = [];
     final query = StringBuffer("update $tableName set ");
     _appendToQuery(query, updateValues, ", ", args);
@@ -197,6 +203,8 @@ class DbConn {
     }
 
     execute(query.toString(), args);
+
+    return this.affectedRowsCount > 0;
   }
 
   void insert(String tableName, Map<String, dynamic> values, {OnConflictDo? onConflict}) {

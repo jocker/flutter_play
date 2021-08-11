@@ -79,12 +79,13 @@ create table if not exists  productlocation(
 -- TABLE SCHEMA machine_column_sales
 create table if not exists  machine_column_sales(
 	id integer not null,
-	machine_column varchar(255),
+	machinecolumn varchar(255),
+	product_id integer,
 	location_id integer,
+	cash_amount_since float,
+	units_sold_since integer,
 	last_sale_cash_amount float,
 	last_sale_unit_count float,
-	units_sold_since integer,
-	cash_amount_since float,
 	last_sale_date timestamp,
     primary key(id)
 );
@@ -138,7 +139,7 @@ create table if not exists pack_entries(
 );
 
 -- TABLE SCHEMA stock_requests
-create table if not exists  restocks(
+create table if not exists restocks(
     id integer not null,
 	location_id integer,
     primary key(id)
@@ -211,7 +212,7 @@ select
     case when max(ifnull(machine_column_sales.last_sale_date, 0))=0 then null else max(ifnull(machine_column_sales.last_sale_date, 0)) end as last_sale_date,
     sum(machine_column_sales.last_sale_unit_count) as last_sale_unit_count,
     sum(machine_column_sales.last_sale_cash_amount) as last_sale_cash_amount
-    from columns join machine_column_sales on columns.name = machine_column_sales.machine_column and machine_column_sales.location_uid = columns.location_uid
+    from columns join machine_column_sales on columns.name = machine_column_sales.machinecolumn and machine_column_sales.location_id = columns.location_id
     group by 1, 2;
 
 
@@ -226,7 +227,6 @@ select
     active,
     last_fill,
     ifnull(pack_units_count, 0) as pack_units_count,
-    ifnull(local_pack_units_count, 0) as local_pack_units_count,
     ifnull(restock_units_count, 0) as restock_units_count,
     case when active=1 then ifnull(sold_units_count, 0) else 0 end as sold_units_count,
 -- if there are any local restocks, then the current fill is going to be the sum of all local restocks
@@ -242,9 +242,8 @@ select
     columns.active as active,
     columns.last_fill as last_fill,
     (select sum(unitcount) from pack_entries where column_id=columns.id and ifnull(restock_id, 0)=0 ) as pack_units_count,
-    (select sum(unitcount) from pack_entries where column_id=columns.id and ifnull(restock_id, 0)=0 and ifnull(pack_id, 0) <= 0 ) as local_pack_units_count,
     (select sum(unit_count) from restock_entries where column_id=columns.id ) as restock_units_count,
-    case when active=1 then (select sum(units_sold_since) from machine_column_sales where machine_column_sales.location_id=columns.location_id and machine_column_sales.machine_column=columns.column_name and last_sale_date > columns.last_visit) else 0 end as sold_units_count
+    case when active=1 then (select sum(units_sold_since) from machine_column_sales where machine_column_sales.location_id=columns.location_id and machine_column_sales.machinecolumn=columns.column_name and last_sale_date > columns.last_visit) else 0 end as sold_units_count
 from columns
 left join products on products.id = columns.product_id
 ) buffer;
@@ -257,7 +256,6 @@ select
     sum(par_value) as par_value,
     sum(last_fill) as last_fill,
     sum(pack_units_count) as pack_units_count,
-    sum(local_pack_units_count) as local_pack_units_count,
     sum(restock_units_count) as restock_units_count,
     sum(sold_units_count) as sold_units_count,
     sum(product_fill) as product_fill,
@@ -278,7 +276,6 @@ select
     coalesce(products.inventory_unit_count, warehouse_units.unit_count, 0) as warehouse_units,
     ifnull(column_units.last_fill, 0) as column_fill_units,
     ifnull(column_units.pack_units_count, 0) as pack_units,
-    ifnull(column_units.local_pack_units_count, 0) as local_pack_units,
     ifnull(product_sales.sold_units_count, 0) as sold_units,
     ifnull(order_delivery_units.delivered_units, 0) as delivered_units,
     ifnull(products.required_unit_count, 0) as required_unit_count,
@@ -311,7 +308,6 @@ left join (
         product_id,
         sum(last_fill) as last_fill,
         sum(pack_units_count) as pack_units_count,
-        sum(local_pack_units_count) as local_pack_units_count,
         sum(restock_units_count) as restock_units_count
     from column_product_inventory
     group by 1
@@ -323,7 +319,7 @@ left join (
 on order_delivery_units.product_id = products.id
 left join(
 select
-    product_uid,
+    product_id,
     sum(sold_units_count) as sold_units_count
     from product_column_sales
     group by 1
@@ -333,7 +329,7 @@ on product_sales.product_id = products.id;
 drop view if exists warehouse_product_inventory;
 create view warehouse_product_inventory as
 select
-    product_uid,
+    product_id,
     warehouse_units+delivered_units-local_pack_units as warehouse_units,
     column_fill_units as column_fill_units,
     pack_units as pack_units,
@@ -342,3 +338,20 @@ select
     required_unit_count as required_inventory_units,
     case when roc=0 then null else max(total_inventory_units/roc, 0) end as days_remaining
 from product_breakdown where archived=0;
+
+
+create view location_fill as
+select *,
+case when active_column_count = 0 then 100 else round(max(product_unit_count, 0)*100.0/par_value, 2) end as fill_percent
+from
+(select
+locations.id as location_id,
+--avg(case when ifnull(current_fill, 0) =0 then 0 else column_product_inventory.current_fill*100.0/column_product_inventory.par_value end) as fill_percent,
+sum(ifnull(column_product_inventory.active, 0)) as active_column_count,
+count(*) as column_count,
+sum(case when ifnull(column_product_inventory.active, 1) = 1 then ifnull(product_fill, 0) else 0 end) as product_unit_count,
+sum(case when ifnull(column_product_inventory.active, 1) = 1 then ifnull(par_value, 0) else 0 end) as par_value
+from locations left join column_product_inventory on locations.id = column_product_inventory.location_id
+and locations.flags & 7 = 4 -- sales location
+group by locations.id) buff;
+

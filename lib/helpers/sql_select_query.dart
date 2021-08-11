@@ -1,21 +1,6 @@
 import 'dart:collection';
 
-import 'package:vgbnd/data/sql_result_set.dart';
-import 'package:vgbnd/sync/sync.dart';
-
-class _SqlStringWithArgs {
-  final String sql;
-  final List<Object>? args;
-
-  _SqlStringWithArgs(this.sql, this.args);
-
-  _writeTo(StringBuffer buf, List<Object> args) {
-    buf.write(sql);
-    if (this.args != null) {
-      args.addAll(this.args!);
-    }
-  }
-}
+import 'package:vgbnd/ext.dart';
 
 class SqlSelectQueryBuilder {
   final String _from;
@@ -24,29 +9,35 @@ class SqlSelectQueryBuilder {
 
   final _fieldsMap = new LinkedHashMap<String, String>();
   List<_SqlStringWithArgs>? _wheres;
+  List<_SqlStringWithArgs>? _groupBy;
   List<_SqlStringWithArgs>? _joins;
   List<_SqlStringWithArgs>? _orders;
   int? _limit;
   int? _offset;
 
-  Map<String, String> fieldMap(){
+  Map<String, String> fieldMap() {
     return Map.from(_fieldsMap);
   }
 
-  field(String selector, String alias) {
+  field(String selector, [String? alias]) {
+    alias ??= selector;
     _fieldsMap[alias] = selector;
   }
 
   where(String sql, [List<Object>? args]) {
-    (_wheres ??= []).add(_SqlStringWithArgs(sql, args));
+    (_wheres ??= []).add(_SqlStringWithArgs(sql, args: args));
   }
 
   join(String sql, [List<Object>? args]) {
-    (_joins ??= []).add(_SqlStringWithArgs(sql, args));
+    (_joins ??= []).add(_SqlStringWithArgs(sql, args: args));
   }
 
   order(String sql, [List<Object>? args]) {
-    (_orders ??= []).add(_SqlStringWithArgs(sql, args));
+    (_orders ??= []).add(_SqlStringWithArgs(sql, args: args));
+  }
+
+  groupBy(String sql, [List<Object>? args]) {
+    (_groupBy ??= []).add(_SqlStringWithArgs(sql, args: args));
   }
 
   limit(int limit) {
@@ -61,6 +52,7 @@ class SqlSelectQueryBuilder {
     final c = SqlSelectQueryBuilder(this._from);
     c._wheres = _wheres?.toList(growable: true);
     c._joins = _joins?.toList(growable: true);
+    c._groupBy = _groupBy?.toList(growable: true);
     c._fieldsMap.addAll(_fieldsMap);
     c._orders = _orders?.toList(growable: true);
     c._limit = _limit;
@@ -69,15 +61,28 @@ class SqlSelectQueryBuilder {
     return c;
   }
 
+  SqlSelectQueryBuilder forSnapshot(String snapshotTableName) {
+    final c = SqlSelectQueryBuilder(snapshotTableName);
+    for (final v in _fieldsMap.keys) {
+      c._fieldsMap[v] = v;
+    }
+    return c;
+  }
+
   SqlSelectQuery build() {
     final buf = StringBuffer("select ");
     final fieldNames = _fieldsMap.keys.toList();
-    for (int i = 0; i < fieldNames.length; i++) {
-      if (i > 0) {
-        buf.write(", ");
+    if (fieldNames.isEmpty) {
+      buf.write("*");
+    } else {
+      for (int i = 0; i < fieldNames.length; i++) {
+        if (i > 0) {
+          buf.write(", ");
+        }
+        buf..write(_fieldsMap[fieldNames[i]])..write(" as ")..write(fieldNames[i]);
       }
-      buf..write(_fieldsMap[fieldNames[i]])..write(" as ")..write(fieldNames[i]);
     }
+
     buf..write(" from ")..write(_from);
     final List<Object> args = [];
 
@@ -101,6 +106,19 @@ class SqlSelectQueryBuilder {
       where._writeTo(buf, args);
     }
 
+    final groupings = _groupBy ?? List.empty(growable: false);
+    var isFirstGrouping = true;
+    for (final grouping in groupings) {
+      if (isFirstGrouping) {
+        isFirstGrouping = false;
+        buf.write(" group by by ");
+      } else {
+        buf.write(", ");
+      }
+
+      grouping._writeTo(buf, args);
+    }
+
     final orders = _orders ?? List.empty(growable: false);
     var isFirstOrder = true;
     for (final order in orders) {
@@ -116,7 +134,7 @@ class SqlSelectQueryBuilder {
 
     final limit = _limit;
     final offset = _offset;
-    if(limit != null && offset != null){
+    if (limit != null && offset != null) {
       buf.write(" limit $limit offset $offset");
     }
 
@@ -128,17 +146,39 @@ class SqlSelectQueryBuilder {
   }
 }
 
-class SqlSelectQuery {
+class SqlSelectQuery extends _SqlStringWithArgs {
+  static SqlSelectQuery fromJson(Map<String, dynamic> src) {
+    return SqlSelectQuery(src["sql"], args: src["args"]);
+  }
+
+  SqlSelectQuery(String sql, {List<Object>? args}) : super(sql, args: args);
+
   static SqlSelectQueryBuilder from(String from) {
     return SqlSelectQueryBuilder(from);
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      "sql": this.sql,
+      "args": this.args,
+    };
+  }
+
+  String signature() {
+    return md5Digest(this.sql + (this.args?.join("&") ?? ""));
+  }
+}
+
+class _SqlStringWithArgs {
   final String sql;
   final List<Object>? args;
 
-  SqlSelectQuery(this.sql, {this.args});
+  _SqlStringWithArgs(this.sql, {this.args});
 
-  Future<SqlResultSet> run() async {
-    return await SyncEngine.current().select(this.sql, args: this.args);
+  _writeTo(StringBuffer buf, List<Object> args) {
+    buf.write(sql);
+    if (this.args != null) {
+      args.addAll(this.args!);
+    }
   }
 }

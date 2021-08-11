@@ -17,7 +17,7 @@ mixin SchemaInfoRepository{
       final dest = new HashMap<String, LocalSchemaInfo>();
 
       final cursor = getDb().select(
-          "select schema_name,local_revision_num,id_counter from ${LocalSchemaInfo.TABLE_NAME} where schema_name in ${DbConn.sqlIn(SyncEngine.SYNC_SCHEMAS)}");
+          "select schema_name,local_revision_num,id_counter from ${LocalSchemaInfo.TABLE_NAME} where schema_name in ${DbConn.buildSqlInCondition(SyncEngine.SYNC_SCHEMAS)}");
 
       cursor.map((c) {
         String schemaName = c.getValueAt(columnName: "schema_name");

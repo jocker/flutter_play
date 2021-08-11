@@ -15,9 +15,9 @@ class TableViewController extends ChangeNotifier {
     }
   }
 
-  final List<int> appendViewTypes = [];
-  final List<int> prependViewTypes = [];
-  final SqlQueryDataSource dataSource;
+  final Set<int> appendViewTypes = LinkedHashSet();
+  final Set<int> prependViewTypes = LinkedHashSet();
+  SqlQueryDataSource dataSource;
 
   String? _groupingColumn;
 
@@ -49,41 +49,50 @@ class TableViewController extends ChangeNotifier {
   setGroupByColumn(String? columnName) {
     if (this._groupingColumn != columnName) {
       this._groupingColumn = columnName;
-      this._clearGroupingInfo();
-      this.notifyListeners();
+      this.invalidateGroupingInfo();
     }
+  }
+
+  invalidateGroupingInfo() {
+    _clearGroupingInfo();
+    this.notifyListeners();
   }
 
   getSortDirection(TableColumn col) {
     return _sortDirections[col] ?? SortDirection.None;
   }
 
-  setSortDirection(TableColumn col, SortDirection dir) {
+  bool setSortDirection(TableColumn col, SortDirection dir) {
     if (getSortDirection(col) != dir) {
       _sortDirections[col] = dir;
       notifyListeners();
+      return true;
     }
+    return false;
   }
 
   @override
   dispose() {
     super.dispose();
+    dataSource.dispose();
     _streamSub?.cancel();
   }
 
   getItemViewType(int renderIndex) {
-
     if (renderIndex < prependViewTypes.length) {
-      return prependViewTypes[renderIndex];
+      return prependViewTypes.elementAt(renderIndex);
     }
-    _precacheViewTypesForGrouping(renderIndex);
-    if (_groupNamesViewTypeIndices.contains(renderIndex)) {
-      return ITEM_VIEW_TYPE_GROUP_HEADER;
+    if(datasourceCount > 0){
+      _precacheViewTypesForGrouping(renderIndex);
+      if (_groupNamesViewTypeIndices.contains(renderIndex)) {
+        return ITEM_VIEW_TYPE_GROUP_HEADER;
+      }
     }
-    final lastDsRenderIndex = _lastDataSourceRenderIndex ?? -1;
-    final appendViewIndex = renderIndex - lastDsRenderIndex ;
+
+    final lastDsRenderIndex = datasourceCount > 0 ? _lastDataSourceRenderIndex ?? -1 : prependViewTypes.length;
+    final appendViewIndex = renderIndex - lastDsRenderIndex;
     if (appendViewIndex >= 0 && appendViewIndex < appendViewTypes.length) {
-      return appendViewTypes[appendViewIndex];
+      return appendViewTypes.elementAt(appendViewIndex);
     }
 
     return ITEM_VIEW_TYPE_DATASOURCE_ITEM;
@@ -137,7 +146,7 @@ class TableViewController extends ChangeNotifier {
     if (_lastDataSourceRenderIndex != null) {
       return;
     } else if (groupByColumn == null) {
-      if(dataSource.isFullyLoaded){
+      if (dataSource.isFullyLoaded) {
         _lastDataSourceRenderIndex = prependViewTypes.length + datasourceCount;
       }
       return;
@@ -177,7 +186,7 @@ class TableViewController extends ChangeNotifier {
       if (c.getItemAt(dsIndex) == null) {
         // reached the end of the data source
         if (c.isFullyLoaded) {
-          _lastDataSourceRenderIndex = dsRenderIndex ;
+          _lastDataSourceRenderIndex = dsRenderIndex;
         }
 
         break;
@@ -218,5 +227,9 @@ class TableViewController extends ChangeNotifier {
     }
 
     _lastCheckedGroupingIndex = dsRenderIndex - 1;
+  }
+
+  Widget buildBodyRow(BuildContext context, int viewType, int renderIndex) {
+    return Container();
   }
 }

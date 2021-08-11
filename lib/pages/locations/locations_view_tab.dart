@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:vgbnd/models/coil.dart';
 import 'package:vgbnd/pages/locations/coil_form.dart';
+import 'package:vgbnd/sync/sync.dart';
 import 'package:vgbnd/widgets/app_fab.dart';
 import 'package:vgbnd/widgets/table_view/table_view.dart';
 
 import 'locations_common.dart';
 
 class LocationViewTab extends StatelessWidget {
-  final int _locationId;
   final LocationObjectListController controller;
 
-  LocationViewTab(this._locationId, this.controller);
+  LocationViewTab(this.controller);
 
   @override
   Widget build(BuildContext context) {
@@ -29,9 +29,10 @@ class LocationViewTab extends StatelessWidget {
               AppFabMenuItem(
                   text: "Add Coil",
                   icon: Icons.add_circle_outline,
-                  onTap: () {
-                    print("add coil");
-                    Get.to(() => CoilForm());
+                  onTap: (){
+                    final c = Coil();
+                    c.locationId = controller.locationId;
+                    _editCoil(c);
                   })
             ],
           ),
@@ -45,7 +46,17 @@ class LocationViewTab extends StatelessWidget {
   Widget buildTable(BuildContext context, LocationObjectListController controller) {
     return TableView(
       controller: controller,
-      onRowClick: (controller, renderIndex) {},
+      onRowClick: (controller, renderIndex) async {
+        final coilId = controller.getDatasourceValueAt<int>("coil_id", renderIndex: renderIndex);
+        if (coilId == null) {
+          return;
+        }
+        final coil = await SyncEngine.current().loadObject(Coil.schema, id: coilId);
+        if (coil != null) {
+          _editCoil(coil);
+        }
+
+      },
       buildBodyRowFunc: buildTrayIdHeaderFunc,
       columns: [
         TableColumn(
@@ -71,7 +82,7 @@ class LocationViewTab extends StatelessWidget {
 
             if (caseSize < 1) {
               caseSize = 1;
-              }
+            }
 
             final theme = Theme.of(context);
             return Text("${lastFill.toString().padLeft(2, '0')} / ${parValue.toString().padLeft(2, '0')}",
@@ -80,5 +91,9 @@ class LocationViewTab extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  _editCoil(Coil coil) async{
+    final res = await CoilForm.edit(coil);
   }
 }

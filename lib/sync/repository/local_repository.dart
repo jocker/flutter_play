@@ -120,7 +120,6 @@ class LocalRepository with SyncObjectDatabaseStorage, SchemaInfoRepository {
         tx.execute("delete from ${schema.tableName} where id in (${deleteItemIds.join(", ")})");
       }
 
-      schema.onChangesetApplied(changeset, tx);
       return true;
     });
     if (changesetRevNum > 0) {

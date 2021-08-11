@@ -9,11 +9,12 @@ class AppFab extends StatelessWidget {
   late final bool loading;
 
   AppFab({this.menuItems, this.fabIcon, this.onTap, bool? enabled, bool? loading}) {
-    this.enabled = enabled ?? true;
+
     this.loading = loading ?? false;
     if (this.loading) {
-      this.enabled = false;
+      enabled = false;
     }
+    this.enabled = enabled ?? true;
   }
 
   @override
@@ -88,7 +89,7 @@ class AppFab extends StatelessWidget {
       ));
     }
 
-    return Stack(children: children);
+    return Stack(children: children, alignment: Alignment.center,);
   }
 }
 

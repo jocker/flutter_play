@@ -1,3 +1,4 @@
+import 'package:vgbnd/ext.dart';
 import 'package:vgbnd/sync/sync_object.dart';
 
 import '../../constants/constants.dart';
@@ -24,7 +25,18 @@ class MutationResult {
     return _isSuccessful ?? false;
   }
 
-  setSuccessful(bool success) {
+  String primaryErrorMessage(String defaultMessage) {
+    return this.errorMessages().firstWhereOrNull((e) => true) ?? defaultMessage;
+  }
+
+  List<String> errorMessages() {
+    if (_errorsMessages != null) {
+      return List.of(_errorsMessages!.values);
+    }
+    return [];
+  }
+
+  void setSuccessful(bool success) {
     _isSuccessful = success;
   }
 
@@ -33,19 +45,34 @@ class MutationResult {
     _errorsMessages = errorsMessages;
   }
 
+  addForCreate(SyncObject? obj) {
+    add(SyncObjectMutationType.Create, obj);
+  }
+
+  addForDelete(SyncObject? obj) {
+    add(SyncObjectMutationType.Delete, obj);
+  }
+
+  addForUpdate(SyncObject? obj) {
+    add(SyncObjectMutationType.Update, obj);
+  }
+
   add(SyncObjectMutationType op, SyncObject? obj) {
     if (obj == null) {
       return;
     }
     switch (op) {
       case SyncObjectMutationType.Create:
-        created = (created ?? [])..add(obj);
+        created = (created ?? [])
+          ..add(obj);
         break;
       case SyncObjectMutationType.Update:
-        updated = (updated ?? [])..add(obj);
+        updated = (updated ?? [])
+          ..add(obj);
         break;
       case SyncObjectMutationType.Delete:
-        deleted = (deleted ?? [])..add(obj);
+        deleted = (deleted ?? [])
+          ..add(obj);
         break;
       default:
         return;
@@ -53,7 +80,8 @@ class MutationResult {
   }
 
   replace(int prevId, int newId, SyncObject replacement) {
-    replacements = (replacements ?? [])..add(SyncObjectReplacement(prevId: prevId, newId: newId, object: replacement));
+    replacements = (replacements ?? [])
+      ..add(SyncObjectReplacement(prevId: prevId, newId: newId, object: replacement));
   }
 
   static MutationResult remoteFailure({String? message, Map<String, String>? messages}) {
@@ -69,7 +97,8 @@ class MutationResult {
   }
 
   static MutationResult failure({SyncStorageType? sourceStorage, Map<String, String>? errorsMessages}) {
-    return MutationResult(sourceStorage ?? SyncStorageType.Local).._errorsMessages = errorsMessages;
+    return MutationResult(sourceStorage ?? SyncStorageType.Local)
+      .._errorsMessages = errorsMessages;
   }
 
   static Map<String, String>? mergeErrorMessages({String? message, Map<String, String>? messages}) {
@@ -88,10 +117,22 @@ class MutationResult {
   Set<String> affectedSchemas() {
     if (this.isSuccessful) {
       final schemas = Set<String>();
-      schemas.addAll((created ?? List.empty()).map((e) => e.getSchema().schemaName));
-      schemas.addAll((updated ?? List.empty()).map((e) => e.getSchema().schemaName));
-      schemas.addAll((deleted ?? List.empty()).map((e) => e.getSchema().schemaName));
-      schemas.addAll((replacements ?? List.empty()).map((e) => e.object.getSchema().schemaName));
+      schemas.addAll((created ?? List.empty()).map((e) =>
+      e
+          .getSchema()
+          .schemaName));
+      schemas.addAll((updated ?? List.empty()).map((e) =>
+      e
+          .getSchema()
+          .schemaName));
+      schemas.addAll((deleted ?? List.empty()).map((e) =>
+      e
+          .getSchema()
+          .schemaName));
+      schemas.addAll((replacements ?? List.empty()).map((e) =>
+      e.object
+          .getSchema()
+          .schemaName));
 
       return schemas;
     }

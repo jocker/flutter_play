@@ -7,16 +7,19 @@ import 'package:vgbnd/helpers/sql_select_query.dart';
 import 'package:vgbnd/sync/sync.dart';
 
 class SqlQueryDataSource extends TableViewDataSource<SqlRow> {
-  final SqlSelectQueryBuilder _baseQuery;
-  late final Map<String, String> _fieldSelectors;
+  SqlSelectQueryBuilder _baseQuery;
+  late Map<String, String> _fieldSelectors;
   late final String? _textSearchSelector;
   late final int _pageSize;
+  late final bool _useSnapshot;
 
   SqlQueryDataSource(this._baseQuery,
-      {Map<String, String>? fieldSelectors, String? textSearchSelector, int? pageSize}) {
+      {Map<String, String>? fieldSelectors, String? textSearchSelector, int? pageSize, bool? useSnapshot}) {
     this._pageSize = pageSize ?? 50;
     this._fieldSelectors = fieldSelectors ?? this._baseQuery.fieldMap();
     this._textSearchSelector = textSearchSelector;
+    this._useSnapshot = useSnapshot ?? false;
+    print("SqlQueryDataSource constructor");
   }
 
   @override
@@ -28,10 +31,19 @@ class SqlQueryDataSource extends TableViewDataSource<SqlRow> {
     return _fieldSelectors[aliasName] ?? aliasName;
   }
 
+  @override
+  Future prepare() async {
+    if (_useSnapshot) {
+      print("prepare ${this._baseQuery.build().sql}");
+      this._baseQuery = await SyncEngine.current().createQuerySnapshot(this._baseQuery);
+      this._fieldSelectors = this._baseQuery.fieldMap();
+    }
+  }
+
   SqlSelectQueryBuilder _buildQuery(TableViewDataFilterCriteria criteria) {
     final q = _baseQuery.clone();
     if (criteria.query != null && _textSearchSelector != null) {
-      q.where('$_textSearchSelector ilike %?%', [criteria.query!]);
+      q.where('lower($_textSearchSelector) like ?', ["%${criteria.query}%"]);
     }
 
     if (criteria.where != null) {
@@ -78,6 +90,9 @@ class SqlTableViewDataProvider extends TableViewDataProvider<SqlRow> {
   Stream<DataProviderLoadResult<SqlRow>> next() {
     StreamController<DataProviderLoadResult<SqlRow>>? ctrl;
     ctrl = StreamController(
+      onCancel: () {
+        //TODO cancel query
+      },
       onListen: () {
         scheduleMicrotask(() async {
           final q = (_sql.clone()
@@ -105,25 +120,35 @@ class SqlTableViewDataProvider extends TableViewDataProvider<SqlRow> {
 }
 
 abstract class TableViewDataSource<T> extends ChangeNotifier {
-  static const STATE_NONE = 0, STATE_PROVISIONING = 1, STATE_LOADING_MORE = 2, STATE_IDLE = 3, STATE_ERROR = 4;
+  static const STATE_NONE = 0,
+      STATE_PREPARING = 1,
+      STATE_PROVISIONING = 2,
+      STATE_RELOADING = 3,
+      STATE_LOADING_MORE = 4,
+      STATE_IDLE = 5,
+      STATE_ERROR = 6;
 
   final List<T> _loadedData = [];
   var _hasMoreToLoad = true;
   var _isDisposed = false;
   final int _loadAhead = 10;
+  var _dataIsDirty = false;
+  var _isPrepared = false;
 
   var _currentState = STATE_NONE;
+  final List<VoidCallback> _reloadCallbacks = [];
 
   var _currentCriteria = TableViewDataFilterCriteria.empty();
   StreamSubscription? _loadSubscription;
   TableViewDataProvider<T>? _dataProvider;
+
+  Timer? _reloadTimer;
 
   Stream<int>? _stateChanged;
 
   int get itemCount {
     return _loadedData.length;
   }
-
 
   bool get isFullyLoaded {
     return !_hasMoreToLoad;
@@ -141,49 +166,119 @@ abstract class TableViewDataSource<T> extends ChangeNotifier {
   TableViewDataProvider<T> initProvider(TableViewDataFilterCriteria criteria);
 
   _onBatchLoaded(DataProviderLoadResult<T> result) {
+    final wasDirty = _dataIsDirty;
+    if (_dataIsDirty) {
+      _loadedData.clear();
+      _dataIsDirty = false;
+    }
     _loadedData.addAll(result.items);
     _hasMoreToLoad = result.hasMore;
+    _setState(STATE_IDLE);
+    if (wasDirty) {
+      _reloadCallbacks.forEach((element) {
+        element();
+      });
+      _reloadCallbacks.clear();
+    }
   }
 
   setCriteria(TableViewDataFilterCriteria criteria) {
     if (criteria != _currentCriteria) {
-      _loadSubscription?.cancel();
-      _loadSubscription = null;
-      _dataProvider?.dispose();
-      _dataProvider = initProvider(criteria);
-      _loadedData.clear();
-      _hasMoreToLoad = true;
-      _setState(STATE_NONE);
-      notifyListeners();
+      _currentCriteria = criteria;
+      _reload();
     }
   }
 
-  _askItem(int pos) {
-    if (pos + _loadAhead < this.itemCount) {
+  reload({bool? now, VoidCallback? callback}) {
+    if (_isDisposed) {
       return;
     }
-    switch (_currentState) {
-      case STATE_PROVISIONING:
-        return false;
-      case STATE_LOADING_MORE:
-        return false;
+    if (callback != null) {
+      _reloadCallbacks.add(callback);
     }
-    if (!_hasMoreToLoad) {
+    now ??= false;
+    _reloadTimer?.cancel();
+    if (now) {
+      _reload();
       return;
     }
+    _reloadTimer = Timer(const Duration(milliseconds: 10), () {
+      _reload();
+    });
+  }
 
+  _reload() {
+    print("reload");
+    _reloadTimer?.cancel();
+    _dataProvider?.dispose();
+    _dataProvider = initProvider(_currentCriteria);
+    _loadSubscription?.cancel();
+    _loadSubscription = null;
+    _dataIsDirty = true;
+
+    _hasMoreToLoad = true;
+    _setState(STATE_IDLE);
+    notifyListeners();
     _triggerLoad();
   }
 
-  _triggerLoad() {
+  @protected
+  Future prepare() async {
+    return;
+  }
+
+  bool _triggerLoad({bool? force}) {
+    if (_isDisposed) {
+      return false;
+    }
+    if (!_isPrepared) {
+      if (_setState(STATE_PREPARING, prevStates: [STATE_NONE])) {
+        scheduleMicrotask(() async {
+          await prepare();
+          _isPrepared = true;
+          if (_setState(STATE_IDLE, prevStates: [STATE_PREPARING])) {
+            _triggerLoad();
+          }
+        });
+        return true;
+      } else {
+        return false;
+      }
+    }
+
+    force ??= false;
+    if (!_isPrepared) {
+      force = false;
+    }
+    if (!force) {
+      switch (_currentState) {
+        case STATE_PREPARING:
+        case STATE_RELOADING:
+        case STATE_PROVISIONING:
+        case STATE_LOADING_MORE:
+          return false;
+      }
+      if (!_hasMoreToLoad) {
+        return false;
+      }
+    }
+
     bool doLoad = false;
 
     if (_hasMoreToLoad) {
-      doLoad = _setState(STATE_PROVISIONING, prevStates: [STATE_NONE]);
-      if (!doLoad) {
-        doLoad = _setState(STATE_LOADING_MORE, prevStates: [STATE_IDLE]);
-      }
+      final nextState = _dataIsDirty
+          ? STATE_RELOADING
+          : _loadedData.isEmpty
+              ? STATE_PROVISIONING
+              : STATE_LOADING_MORE;
+      doLoad = _setState(nextState, prevStates: [STATE_IDLE]);
     }
+
+    if (!doLoad) {
+      return false;
+    }
+
+    print("triggerLoad");
 
     StreamSubscription? triggeredSub;
     _dataProvider ??= initProvider(TableViewDataFilterCriteria.empty());
@@ -194,15 +289,18 @@ abstract class TableViewDataSource<T> extends ChangeNotifier {
       if (_loadSubscription == triggeredSub) {
         _loadSubscription = null;
         _onBatchLoaded(event);
-        _setState(STATE_IDLE);
       }
     });
 
     _loadSubscription = triggeredSub;
+
+    return true;
   }
 
   T? getItemAt(int pos) {
-    _askItem(pos);
+    if (_currentState == STATE_NONE) {
+      _triggerLoad();
+    }
     if (pos >= 0 && pos < itemCount) {
       return _loadedData[pos];
     }
@@ -219,25 +317,33 @@ abstract class TableViewDataSource<T> extends ChangeNotifier {
     _loadSubscription?.cancel();
     _dataProvider?.dispose();
     _loadedData.clear();
+    _reloadTimer?.cancel();
   }
 
-  int get currentState{
+  int get currentState {
     return _currentState;
   }
 
   Stream<int> get stateChanged {
     var prevState = _currentState;
-    _stateChanged = _stateChanged ?? _createStream(() => prevState != _currentState, () => _currentState).asBroadcastStream();
+    _stateChanged =
+        _stateChanged ?? _createStream(() => prevState != _currentState, () => _currentState).asBroadcastStream();
     return _stateChanged!;
   }
 
-  bool _setState(int newState, {List<int>? prevStates}) {
-    if (_currentState != newState) {
-      if (prevStates == null || prevStates.contains(_currentState)) {
-        _currentState = newState;
-        notifyListeners();
-        return true;
-      }
+  bool _setState(int newState, {List<int>? prevStates, bool? forceNotify}) {
+    if (_isDisposed) {
+      return false;
+    }
+    forceNotify ??= false;
+    if (!forceNotify) {
+      forceNotify = (_currentState != newState) && (prevStates == null || prevStates.contains(_currentState));
+    }
+    if (forceNotify) {
+      print("changed from $_currentState to $newState}");
+      _currentState = newState;
+      notifyListeners();
+      return true;
     }
     return false;
   }

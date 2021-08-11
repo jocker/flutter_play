@@ -1,6 +1,5 @@
 import 'package:vgbnd/api/api.dart';
 import 'package:vgbnd/constants/constants.dart';
-import 'package:vgbnd/data/db.dart';
 import 'package:vgbnd/log.dart';
 import 'package:vgbnd/sync/mutation/mutation.dart';
 import 'package:vgbnd/sync/repository/local_repository.dart';
@@ -13,39 +12,43 @@ import '../sync_object.dart';
 import 'mutation_handlers.dart';
 
 class DefaultRemoteMutationHandler<T extends SyncObject<T>> with RemoteMutationHandler<T> {
-  MutationResult _processRemoteChangelog(List<RemoteSchemaChangelog> changelogs, DbConn dbConn) {
-    final mutResult = MutationResult(SyncStorageType.Remote);
+  static addChangelog(MutationResult mutResult, RemoteSchemaChangelog changelog, LocalRepository localRepo) {
+    final schema = SyncSchema.byName(changelog.schemaName);
+    if (schema == null) {
+      return;
+    }
 
-    for (var changelog in changelogs) {
-      final schema = SyncSchema.byName(changelog.schemaName);
-      if (schema == null) {
+    int? maxRemoteID;
+
+    final idColName = schema.idColumn?.name;
+    if (idColName != null) {
+      maxRemoteID =
+          localRepo.dbConn.selectValue<int?>("select coalesce( (select max($idColName) from ${schema.tableName}), 0)");
+    }
+
+    for (var entry in changelog.entries()) {
+      final syncObject = entry.toSyncObject();
+      if (syncObject == null) {
         continue;
       }
 
-      int? maxRemoteID;
-
-      final idColName = schema.idColumn?.name;
-      if (idColName != null) {
-        maxRemoteID =
-            dbConn.selectValue<int?>("select coalesce( (select max($idColName) from ${schema.tableName}), 0)");
+      if (entry.isDeleted == true) {
+        mutResult.add(SyncObjectMutationType.Delete, syncObject);
       }
 
-      for (var entry in changelog.entries()) {
-        final syncObject = entry.toSyncObject();
-        if (syncObject == null) {
-          continue;
-        }
-
-        if (entry.isDeleted == true) {
-          mutResult.add(SyncObjectMutationType.Delete, syncObject);
-        }
-
-        if (maxRemoteID != null && maxRemoteID < syncObject.getId()) {
-          mutResult.add(SyncObjectMutationType.Create, syncObject);
-        } else {
-          mutResult.add(SyncObjectMutationType.Update, syncObject);
-        }
+      if (maxRemoteID != null && maxRemoteID < syncObject.getId()) {
+        mutResult.add(SyncObjectMutationType.Create, syncObject);
+      } else {
+        mutResult.add(SyncObjectMutationType.Update, syncObject);
       }
+    }
+  }
+
+  MutationResult _processRemoteChangelog(List<RemoteSchemaChangelog> changelogs, LocalRepository localRepo) {
+    final mutResult = MutationResult(SyncStorageType.Remote);
+
+    for (var changelog in changelogs) {
+      DefaultRemoteMutationHandler.addChangelog(mutResult, changelog, localRepo);
     }
 
     mutResult.setSuccessful(true);
@@ -55,7 +58,7 @@ class DefaultRemoteMutationHandler<T extends SyncObject<T>> with RemoteMutationH
   @override
   Future<MutationResult> applyRemoteMutationResult(SyncPendingRemoteMutation mutData,
       List<RemoteSchemaChangelog> remoteChangelogs, LocalRepository localRepo) async {
-    final mutResult = _processRemoteChangelog(remoteChangelogs, localRepo.dbConn);
+    final mutResult = _processRemoteChangelog(remoteChangelogs, localRepo);
     switch (mutData.mutationType) {
       case SyncObjectMutationType.Create:
         final createdOfType =

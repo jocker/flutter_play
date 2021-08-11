@@ -2,6 +2,7 @@ import 'package:dynamic_themes/dynamic_themes.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:vgbnd/controllers/app_section_controller.dart';
+import 'package:vgbnd/pages/locations/locations_list.dart';
 
 import 'constants/app_theme.dart';
 import 'controllers/routing_controller.dart';
@@ -10,6 +11,7 @@ import 'layout.dart';
 void main() {
   AppSectionController.register();
   RoutingController.register();
+  LocationListPageController.register();
 
   runApp(MyApp());
 }
@@ -36,16 +38,10 @@ class MyApp extends StatelessWidget {
           floatingActionButtonTheme: darkFABTheme.copyWith(backgroundColor: AppTheme.blue)),
     });
 
-    return DynamicTheme(
-      themeCollection: themeCollection,
-      defaultThemeId: AppTheme.Blue,
-      builder: (context, theme) {
-        return GetMaterialApp(
-          debugShowCheckedModeBanner: false,
-          theme: theme,
-          home: SiteLayout(),
-        );
-      },
+    return GetMaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: themeCollection[AppTheme.Blue],
+      home: SiteLayout(),
     );
   }
 }

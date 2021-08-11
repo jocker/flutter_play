@@ -7,8 +7,7 @@ import '../sync/sync_object.dart';
 class Coil extends SyncObject<Coil> {
   static const SchemaName SCHEMA_NAME = 'columns';
 
-  static final schema = SyncSchema<Coil>(SCHEMA_NAME,
-      allocate: () => Coil(), columns: [
+  static final schema = SyncSchema<Coil>(SCHEMA_NAME, allocate: () => Coil(), columns: [
     SyncColumn.id(),
     SyncColumn(
       "column_name",
@@ -42,6 +41,7 @@ class Coil extends SyncObject<Coil> {
     ),
     SyncColumn(
       "display_name",
+      isDisplayNameColumn: true,
       readAttribute: (dest) => dest.displayName,
       assignAttribute: (value, key, dest) {
         dest.displayName = value.getValue(key) ?? dest.displayName;
@@ -123,14 +123,32 @@ class Coil extends SyncObject<Coil> {
   DateTime? lastVisit;
   int? trayId;
   String? coilNotes;
-  int? setPrice;
+  double? setPrice;
   String? stsCoils;
   bool? active;
-
 
   @override
   SyncSchema<Coil> getSchema() {
     return schema;
   }
-}
 
+  int getParValue() {
+    final cap = this.capacity ?? 0;
+    if (cap > 1) {
+      return cap;
+    }
+    return 1;
+  }
+
+  int getFillValue() {
+    final fill = this.lastFill ?? 0;
+    if (fill > 0) {
+      return fill;
+    }
+    return 0;
+  }
+
+  double getFillPercent() {
+    return this.getFillValue().toDouble() / this.getParValue();
+  }
+}

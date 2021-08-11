@@ -2,10 +2,10 @@ import 'dart:collection';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:vgbnd/pages/overview/overview.dart';
 
 import 'locations_common.dart';
 import 'locations_pack_tab.dart';
+import 'locations_stock_tab.dart';
 import 'locations_view_tab.dart';
 
 typedef Widget BuildTabFunc(BuildContext context);
@@ -34,11 +34,6 @@ class _TabPanelState extends State<TabPanel> with SingleTickerProviderStateMixin
   final _renderedTabs = new HashSet<String>();
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-  }
-
-  @override
   void initState() {
     super.initState();
     _renderedTabs.add(widget.tabs[0].key);
@@ -50,7 +45,7 @@ class _TabPanelState extends State<TabPanel> with SingleTickerProviderStateMixin
       final isChanging = _tabController.indexIsChanging;
       if (isChanging) {
         wasChangingIndex = index;
-      } else if (wasChangingIndex == index) {
+      } else {
         final tab = this.widget.tabs[index];
         if (!_renderedTabs.contains(tab.key)) {
           setState(() {
@@ -100,41 +95,46 @@ class _TabPanelState extends State<TabPanel> with SingleTickerProviderStateMixin
   }
 }
 
-class LocationsOverview extends StatelessWidget {
+class LocationsOverview extends StatefulWidget {
+  @override
+  _LocationsOverviewState createState() => _LocationsOverviewState();
+}
+
+class _LocationsOverviewState extends State<LocationsOverview> {
   final locationId = 231265;
-  final _controllers = HashMap<String, dynamic>();
+
+  final _controllers = HashMap<String, LocationObjectListController>();
 
   @override
   Widget build(BuildContext context) {
     return TabPanel(
       tabs: [
         TabConfig(
-          key: "view",
-          label: "VIEW",
-          build: (context) {
-            return LocationViewTab(
-              locationId,
-              getOrInitController("view")
-            );
-          },
-        ),
-        TabConfig(
           key: "pack",
           label: "PACK",
           build: (context) {
-            return LocationsPackTab(locationId, getOrInitController("pack"));
+            return LocationsPackTab(getOrInitController("pack"));
           },
         ),
         TabConfig(
           key: "stock",
           label: "STOCK",
           build: (context) {
-            return OverviewPage();
+            return LocationsStockTab(getOrInitController("stock"));
             return Center(
               child: Text("STOCK"),
             );
           },
-        )
+        ),
+
+        TabConfig(
+          key: "view",
+          label: "VIEW",
+          build: (context) {
+            return Container();
+            return LocationViewTab(getOrInitController("view"));
+          },
+        ),
       ],
     );
   }
@@ -143,13 +143,19 @@ class LocationsOverview extends StatelessWidget {
     if (_controllers.containsKey(which)) {
       return _controllers[which];
     }
+
     dynamic ctrl;
     switch (which) {
       case "view":
-        ctrl = (LocationObjectListController(LocationCoilStockDatasource(locationId, false))..setGroupByColumn("tray_id"));
+        ctrl = (LocationObjectListController(
+            locationId, LocationCoilStockDatasource(locationId, activeCoilsOnly: false, prodRequired: false))
+          ..setGroupByColumn("tray_id"));
         break;
       case "pack":
-        ctrl = (LocationObjectListController(LocationCoilStockDatasource(locationId, true ))..setGroupByColumn("tray_id"));
+        ctrl = (LocationPackObjectListController(locationId, false));
+        break;
+      case "stock":
+        ctrl = (LocationStockObjectListController(locationId));
         break;
     }
 
@@ -159,4 +165,14 @@ class LocationsOverview extends StatelessWidget {
     _controllers[which] = ctrl;
     return ctrl;
   }
+
+  @override
+  void dispose() {
+    super.dispose();
+    for(final ctrl in _controllers.values){
+      ctrl.dispose();
+    }
+    _controllers.clear();
+  }
+
 }

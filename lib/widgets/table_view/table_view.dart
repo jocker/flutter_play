@@ -6,6 +6,8 @@ import 'package:vgbnd/constants/constants.dart';
 import 'package:vgbnd/widgets/table_view/table_view_controller.dart';
 import 'package:vgbnd/widgets/table_view/table_view_data_source.dart';
 
+import '../../ext.dart';
+
 typedef Widget? BuildBodyRowFunc(BuildContext context, TableViewController controller, int viewType, int renderIndex);
 typedef Widget? BuildBodyCellFunc(BuildContext context, TableColumn col, TableViewController controller, int index);
 typedef Widget? BuildHeaderCellFunc(BuildContext context, TableColumn col, TableViewController controller);
@@ -135,19 +137,22 @@ class TableView extends StatefulWidget {
   BuildBodyRowFunc? buildBodyRowFunc;
   final String? emptyText;
   TableRowClickCallback? onRowClick;
+  late final bool headersVisible;
 
   TableView(
       {Key? key,
       required this.columns,
-      double? headerDividerWidth,
-      this.headerDividerColor,
       required TableViewController controller,
+      double? headerDividerWidth,
+      bool? headersVisible,
+      this.headerDividerColor,
       this.buildBodyRowFunc,
       this.emptyText,
       this.onRowClick})
       : super(key: key) {
     this.headerDividerWidth = headerDividerWidth ?? 2;
     this.controller = controller;
+    this.headersVisible = headersVisible ?? true;
   }
 
   @override
@@ -182,59 +187,24 @@ class _TableViewState extends State<TableView> {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder(
-      initialData: widget.controller.dataSource.currentState,
-      stream: widget.controller.dataSource.stateChanged,
-      builder: (context, snapshot) {
-        print("snapshot ${snapshot.data}");
-
-        switch (snapshot.data) {
-          case TableViewDataSource.STATE_NONE:
-            widget.controller.dataSource.getItemAt(0);
-            break;
-          case TableViewDataSource.STATE_PROVISIONING:
-            return Center(
-              child: CircularProgressIndicator(),
-            );
-          case TableViewDataSource.STATE_ERROR:
-            return Center(
-              child: Text("Error loading data"),
-            );
-          case TableViewDataSource.STATE_LOADING_MORE:
-            return _buildList(context);
-          case TableViewDataSource.STATE_IDLE:
-            if (widget.controller.dataSource.isEmpty) {
-              return Center(
-                child: Text(this.widget.emptyText ?? "No items"),
-              );
-            }
-            return _buildList(context);
-        }
-
-        return Container();
-      },
-    );
-  }
-
-  Widget _buildList(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         this._refreshColumnWidths(context, constraints);
-        return Stack(
-          children: <Widget>[
+
+        final double headerHeight = this.widget.headersVisible ? 56 : 0;
+
+        final List<Widget> widgets = [
+          Container(
+            margin: EdgeInsets.only(top: headerHeight),
+            // color: theme.secondaryHeaderColor,
+            child: _buildBody(context),
+          )
+        ];
+
+        if (this.widget.headersVisible) {
+          widgets.addAll([
             Container(
-              margin: EdgeInsets.only(top: 50),
-              // color: theme.secondaryHeaderColor,
-              child: ListView.builder(
-                controller: widget.controller.scrollController,
-                itemCount: widget.controller.renderItemCount,
-                itemBuilder: (context, index) {
-                  return _buildBodyRow(context, index);
-                },
-              ),
-            ),
-            Container(
-              height: 56,
+              height: headerHeight,
               width: constraints.maxWidth,
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -250,8 +220,56 @@ class _TableViewState extends State<TableView> {
                 children: _buildHeaders(context),
               ),
             ),
-          ],
-        );
+          ]);
+        }
+
+        return Stack(children: widgets);
+      },
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
+    return StreamBuilder(
+      initialData: widget.controller.dataSource.currentState,
+      stream: widget.controller.dataSource.stateChanged,
+      builder: (context, snapshot) {
+        print("snapshot ${snapshot.data}");
+
+        switch (snapshot.data) {
+          case TableViewDataSource.STATE_NONE:
+          case TableViewDataSource.STATE_PREPARING:
+          case TableViewDataSource.STATE_PROVISIONING:
+            widget.controller.dataSource.getItemAt(0);
+            return Center(
+              child: CircularProgressIndicator(),
+            );
+          case TableViewDataSource.STATE_ERROR:
+            return Center(
+              child: Text("Error loading data"),
+            );
+          case TableViewDataSource.STATE_LOADING_MORE:
+          case TableViewDataSource.STATE_RELOADING:
+            return _buildBodyList(context);
+          case TableViewDataSource.STATE_IDLE:
+            if (widget.controller.dataSource.isEmpty) {
+              return Center(
+                child: Text(this.widget.emptyText ?? "No items"),
+              );
+            }
+            return _buildBodyList(context);
+        }
+
+        return Container();
+      },
+    );
+  }
+
+  Widget _buildBodyList(BuildContext context) {
+    return ListView.builder(
+      controller: widget.controller.scrollController,
+      itemCount: widget.controller.renderItemCount,
+      itemBuilder: (context, index) {
+        return _buildBodyRow(context, index);
       },
     );
   }
@@ -344,9 +362,7 @@ class _TableViewState extends State<TableView> {
 
     switch (viewType) {
       case TableViewController.ITEM_VIEW_TYPE_FAB_SPACER:
-        return SizedBox(
-          height: 100,
-        );
+        return verticalFabSpacer();
       case TableViewController.ITEM_VIEW_TYPE_DATASOURCE_ITEM:
         final theme = Theme.of(context);
         final columns = this.widget.columns;
@@ -395,7 +411,7 @@ class _TableViewState extends State<TableView> {
         return bodyRow;
 
       default:
-        return Container();
+        return widget.controller.buildBodyRow(context, viewType, renderIndex);
     }
   }
 }
