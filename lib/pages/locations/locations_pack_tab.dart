@@ -174,7 +174,7 @@ class LocationPackObjectListController extends LocationObjectListController {
     _isInitialized = true;
     callback();
 
-    final watcher = await SyncEngine.current().watchSchemas([PackEntry.SCHEMA_NAME]);
+    final watcher = await SyncEngine.current().createSchemaChangedStream([PackEntry.SCHEMA_NAME]);
     final sub = watcher.listen((event) async {
       final newHasUnsubmittedPacks = await Location.hasUnsubmittedPacks(this.locationId);
       if (isDisposed) {

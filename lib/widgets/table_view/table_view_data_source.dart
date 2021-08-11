@@ -4,22 +4,40 @@ import 'package:flutter/foundation.dart';
 import 'package:vgbnd/constants/constants.dart';
 import 'package:vgbnd/data/sql_result_set.dart';
 import 'package:vgbnd/helpers/sql_select_query.dart';
+import 'package:vgbnd/sync/schema.dart';
 import 'package:vgbnd/sync/sync.dart';
+import 'package:vgbnd/ext.dart';
 
 class SqlQueryDataSource extends TableViewDataSource<SqlRow> {
   SqlSelectQueryBuilder _baseQuery;
-  late Map<String, String> _fieldSelectors;
-  late final String? _textSearchSelector;
   late final int _pageSize;
   late final bool _useSnapshot;
+  List<String> _searchableFieldSelectors = [];
+  late final Map<String, String> _fieldSelectors;
+  late final List<SyncSchema> _watchSchemas;
 
   SqlQueryDataSource(this._baseQuery,
-      {Map<String, String>? fieldSelectors, String? textSearchSelector, int? pageSize, bool? useSnapshot}) {
+      {List<String>? searchableFields, int? pageSize, bool? useSnapshot, List<SyncSchema>? watchSchemas}) {
     this._pageSize = pageSize ?? 50;
-    this._fieldSelectors = fieldSelectors ?? this._baseQuery.fieldMap();
-    this._textSearchSelector = textSearchSelector;
     this._useSnapshot = useSnapshot ?? false;
+    this._watchSchemas = watchSchemas ?? [];
+
+    final fieldSelectors = Map.of(this._baseQuery.fieldMap());
+    if (_useSnapshot) {
+      fieldSelectors.clear();
+      for (final v in this._baseQuery.fieldMap().values) {
+        fieldSelectors[v] = v;
+      }
+    }
+
+    if (searchableFields != null) {
+      this
+          ._searchableFieldSelectors
+          .addAll(this._fieldSelectors.keys.where((element) => searchableFields.contains(element)));
+    }
+
     print("SqlQueryDataSource constructor");
+    
   }
 
   @override
@@ -42,8 +60,11 @@ class SqlQueryDataSource extends TableViewDataSource<SqlRow> {
 
   SqlSelectQueryBuilder _buildQuery(TableViewDataFilterCriteria criteria) {
     final q = _baseQuery.clone();
-    if (criteria.query != null && _textSearchSelector != null) {
-      q.where('lower($_textSearchSelector) like ?', ["%${criteria.query}%"]);
+    if (criteria.query != null && _searchableFieldSelectors.isNotEmpty) {
+      List<String> params = [];
+      params.fillRange(0, _searchableFieldSelectors.length - 1, "%${criteria.query}%");
+      final selector = this._searchableFieldSelectors.map((e) => " ( lower($e) like ? ) ").join(" or ");
+      q.where('($selector)', params);
     }
 
     if (criteria.where != null) {

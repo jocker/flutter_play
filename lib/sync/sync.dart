@@ -53,7 +53,7 @@ class SyncEngineIsolate {
     _remoteRepository = RemoteRepository(this._account, this._connectivityInfo);
   }
 
-  Future<bool> pullChanges() async {
+  Future<bool> pullChanges({List<String>? schemas}) async {
     List<SchemaVersion> unsynced = [];
     var includeDeleted = false;
     if (!_localRepository.isEmpty) {
@@ -68,6 +68,11 @@ class SyncEngineIsolate {
     }
 
     unsynced = unsynced.where((element) => SyncSchema.byName(element.schemaName)?.remoteReadable ?? false).toList();
+
+    if (schemas != null) {
+      unsynced = unsynced.where((element) => schemas.contains(element)).toList();
+    }
+
     final unsyncedResp = await _remoteRepository.changes(unsynced, includeDeleted: includeDeleted);
     if (!unsyncedResp.isSuccess) {
       return false;
@@ -86,11 +91,11 @@ class SyncEngineIsolate {
   }
 
   Future<_WatchSchemasReply> watchSchemas(_WatchSchemasMessage ask) async {
-    var prevNum = _getSchemaSignature(ask.schemas);
+    var prevNum = getSchemaVersion(ask.schemas);
     final initial = prevNum;
     final subscription = _localRepository.onSchemaChanged().listen((event) {
       if (ask.schemas.contains(event.schemaName)) {
-        var newNum = _getSchemaSignature(ask.schemas);
+        var newNum = getSchemaVersion(ask.schemas);
         if (prevNum != newNum) {
           ask.notifyPort.send(newNum);
           prevNum = newNum;
@@ -261,7 +266,7 @@ class SyncEngineIsolate {
       affectedSchemas.clear();
       return false;
     }
-    print("aaaa");
+
     affectedSchemas.forEach((schemaName) {
       _localRepository.localSchemaInfos[schemaName]?.invalidateVersion();
     });
@@ -296,7 +301,7 @@ class SyncEngineIsolate {
     });
   }
 
-  _getSchemaSignature(List<String> schemaNames) {
+  int getSchemaVersion(List<String> schemaNames) {
     int res = 0;
     for (var name in schemaNames) {
       final versionNum = _localRepository.localSchemaInfos[name]?.versionNumber ?? -1;
@@ -428,7 +433,7 @@ class SyncEngine extends TaskRunner {
     return success;
   }
 
-  Future<Stream<int>> watchSchemas(List<String> schemaNames) async {
+  Future<Stream<int>> createSchemaChangedStream(List<String> schemaNames) async {
     final p = ReceivePort();
     _WatchSchemasReply reply =
         await this.exec(_MESSAGE_TYPE_WATCH_SCHEMA_CHANGED, args: _WatchSchemasMessage(p.sendPort, schemaNames));
@@ -472,9 +477,9 @@ class SyncEngine extends TaskRunner {
     await _snapshotMux.acquire();
 
     try {
-      if(!_snapshots.containsKey(queryKey)){
-        _snapshots[queryKey] = await this.exec(_MESSAGE_TYPE_CREATE_QUERY_SNAPSHOT,
-            args: _CreateQuerySnapshotMessage(query.sql, query.args ?? []));
+      if (!_snapshots.containsKey(queryKey)) {
+        _snapshots[queryKey] = await this
+            .exec(_MESSAGE_TYPE_CREATE_QUERY_SNAPSHOT, args: _CreateQuerySnapshotMessage(query.sql, query.args ?? []));
       }
 
       return queryBuilder.forSnapshot(_snapshots[queryKey]!);
