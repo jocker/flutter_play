@@ -66,7 +66,7 @@ class _SyncObjectListViewState extends State<SyncObjectListView> {
   @override
   void initState() {
     dataSource = SqlQueryDataSource(SqlSelectQueryBuilder(Product.schema.tableName)..order(widget.sqlColumnSelector),
-        textSearchSelector: widget.sqlColumnSelector);
+        searchableFields: [widget.sqlColumnSelector]);
 
     super.initState();
   }

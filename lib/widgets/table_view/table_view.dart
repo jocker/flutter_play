@@ -137,23 +137,21 @@ class TableView extends StatefulWidget {
   BuildBodyRowFunc? buildBodyRowFunc;
   final String? emptyText;
   TableRowClickCallback? onRowClick;
-  late final bool headersVisible;
+  final bool headersVisible;
+  final bool shrinkWrap;
 
   TableView(
       {Key? key,
       required this.columns,
-      required TableViewController controller,
-      double? headerDividerWidth,
-      bool? headersVisible,
+      required this.controller,
+      this.headerDividerWidth = 2,
+      this.headersVisible = true,
+      this.shrinkWrap = false,
       this.headerDividerColor,
       this.buildBodyRowFunc,
       this.emptyText,
       this.onRowClick})
-      : super(key: key) {
-    this.headerDividerWidth = headerDividerWidth ?? 2;
-    this.controller = controller;
-    this.headersVisible = headersVisible ?? true;
-  }
+      : super(key: key) {}
 
   @override
   State<StatefulWidget> createState() {
@@ -266,6 +264,7 @@ class _TableViewState extends State<TableView> {
 
   Widget _buildBodyList(BuildContext context) {
     return ListView.builder(
+      shrinkWrap: true,
       controller: widget.controller.scrollController,
       itemCount: widget.controller.renderItemCount,
       itemBuilder: (context, index) {
@@ -323,7 +322,7 @@ class _TableViewState extends State<TableView> {
       final colWidget = Container(
         alignment: col.contentAlignment ?? Alignment.centerLeft,
         width: _getColumnWidth(col),
-        padding: EdgeInsets.symmetric(horizontal: 8),
+        padding: EdgeInsets.symmetric(horizontal: 16),
         child: col._buildHeaderCell(context, col, this.widget.controller),
       );
 
@@ -378,8 +377,8 @@ class _TableViewState extends State<TableView> {
           final w = Container(
             alignment: col.contentAlignment ?? Alignment.centerLeft,
             margin: EdgeInsets.only(left: leftMargin),
-            padding: EdgeInsets.only(left: 8, right: 8),
-            height: 56,
+            padding: EdgeInsets.only(left: 16, right: 16),
+            height: 48,
             width: width,
             child: col._buildBodyCell(context, col, this.widget.controller, renderIndex),
           );

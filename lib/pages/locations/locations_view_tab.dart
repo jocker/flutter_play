@@ -51,7 +51,7 @@ class LocationViewTab extends StatelessWidget {
         if (coilId == null) {
           return;
         }
-        final coil = await SyncEngine.current().loadObject(Coil.schema, id: coilId);
+        final coil = await SyncController.current().loadObject(Coil.schema, id: coilId);
         if (coil != null) {
           _editCoil(coil);
         }

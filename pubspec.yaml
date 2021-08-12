@@ -38,6 +38,7 @@ dependencies:
   dynamic_themes: ^1.1.0
   logger: ^1.0.0
   fluttertoast: ^8.0.8
+  shared_preferences: ^2.0.6
 
 dev_dependencies:
   flutter_test:

@@ -36,7 +36,7 @@ class Result<T> {
 }
 
 class Api {
-  UserAccount _account;
+  UserAccount? _account;
 
   Api(this._account);
 
@@ -167,10 +167,12 @@ class ApiRequestBuilder {
 
   static final _baseApiUri = 'http://192.168.100.152:3000/api/public';
 
-  static Uri getUri(String path, [Map<String, String>? qsParams]) {
+  Uri _getApiUri(String path, [Map<String, String>? qsParams]) {
     if (path.startsWith("/")) {
       path = path.substring(1);
     }
+    
+    final _baseApiUri = (_userAccount?.env ?? AppEnvironment.Production).endpoint;
 
     var u = Uri.parse("$_baseApiUri/$path");
     if (qsParams != null) {
@@ -201,7 +203,7 @@ class ApiRequestBuilder {
     }
   }
 
-  ApiRequestBuilder forAccount(UserAccount account) {
+  ApiRequestBuilder forAccount(UserAccount? account) {
     _userAccount = account;
     return this;
   }
@@ -232,11 +234,11 @@ class ApiRequestBuilder {
 
   Future<http.Request> request() async {
     final account = _userAccount;
-    if (account != null) {
+    if (account   != null) {
       await account.sign(this);
     }
 
-    final url = ApiRequestBuilder.getUri(_path, _qsParams);
+    final url = _getApiUri(_path, _qsParams);
 
     final req = http.Request(_method, url);
 
@@ -437,28 +439,58 @@ class RemoteSchemaChangelogEntry {
   }
 }
 
+class AppEnvironment {
+  final String key;
+  final String endpoint;
+
+  static const AppEnvironment Test =
+          AppEnvironment(key: "test", endpoint: "http://testapi.appenv.vagabondvending.com/api/public"),
+      Staging = AppEnvironment(key: "staging", endpoint: "http://stageapi.appenv.vagabondvending.com/api/public"),
+      Demo = AppEnvironment(key: "demo", endpoint: "http://demoapi.appenv.vagabondvending.com/api/public"),
+      Production = AppEnvironment(key: "production", endpoint: "http://apim.vagabondvending.com/api/public"),
+      Local = AppEnvironment(key: "local", endpoint: "http://192.168.100.152:3000/api/public");
+
+  static const _ALL = [Test, Staging, Demo, Production, Local];
+
+  static AppEnvironment? byKey(String key) {
+    for (final env in _ALL) {
+      if (env.key == key) {
+        return env;
+      }
+    }
+    return null;
+  }
+
+  const AppEnvironment({required this.key, required this.endpoint});
+}
+
 class UserAccount {
   final int id;
   final String email;
   final String password;
   final String displayName;
+  final String envName;
 
-  static UserAccount current =
-      UserAccount(id: 649, email: "bonnie@vagabondvending.com", password: "bonnierocks", displayName: "Tonnie Brush");
-
-  UserAccount({required this.id, required this.email, required this.password, required this.displayName});
+  UserAccount(
+      {required this.id,
+      required this.email,
+      required this.password,
+      required this.displayName,
+      required this.envName});
 
   UserAccount.fromJson(Map<String, dynamic> json)
       : id = json['id'],
         email = json['email'],
-        password = json['password'],
-        displayName = json['display_name'];
+        password = json['pwd'],
+        displayName = json['display_name'],
+        envName = json['env'] ?? AppEnvironment.Production.key;
 
   Map<String, dynamic> toJson() => {
         "id": id,
         "email": email,
-        "password": password,
+        "pwd": password,
         "display_name": displayName,
+        "env": envName,
       };
 
   sign(ApiRequestBuilder req) {
@@ -474,5 +506,9 @@ class UserAccount {
         "XDATE": xdate,
       });
     }
+  }
+
+  AppEnvironment get env {
+    return AppEnvironment.byKey(this.envName) ?? AppEnvironment.Production;
   }
 }

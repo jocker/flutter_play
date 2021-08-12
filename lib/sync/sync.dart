@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:vgbnd/api/api.dart';
 import 'package:vgbnd/bkg/task_runner.dart';
 import 'package:vgbnd/constants/constants.dart';
+import 'package:vgbnd/controllers/auth_controller.dart';
 import 'package:vgbnd/data/db.dart';
 import 'package:vgbnd/data/sql_result_set.dart';
 import 'package:vgbnd/ext.dart';
@@ -64,7 +65,7 @@ class SyncEngineIsolate {
       unsynced = _localRepository.getUnsynced(versionsResp.body!);
       includeDeleted = true;
     } else {
-      unsynced.addAll(SyncEngine.SYNC_SCHEMAS.map((e) => SchemaVersion(e, 0)));
+      unsynced.addAll(SyncController.SYNC_SCHEMAS.map((e) => SchemaVersion(e, 0)));
     }
 
     unsynced = unsynced.where((element) => SyncSchema.byName(element.schemaName)?.remoteReadable ?? false).toList();
@@ -203,7 +204,7 @@ class SyncEngineIsolate {
           // mutResult.add(SyncObjectMutationType.Update, repl.object);
 
           // update all objects which reference this object with the new id
-          SyncEngine.SYNC_SCHEMAS.forEach((schemaName) {
+          SyncController.SYNC_SCHEMAS.forEach((schemaName) {
             final depSchema = SyncSchema.byNameStrict(schemaName);
             depSchema.columns.where((col) => col.referenceOf?.schemaName == parentSchema.schemaName).forEach((depCol) {
               tx.update(depSchema.tableName, {depCol.name: repl.newId}, {depCol.name: repl.prevId});
@@ -284,7 +285,7 @@ class SyncEngineIsolate {
     }
     dest[key] = rec;
 
-    SyncEngine.SYNC_SCHEMAS.forEach((childSchemaName) {
+    SyncController.SYNC_SCHEMAS.forEach((childSchemaName) {
       final childSchema = SyncSchema.byNameStrict(childSchemaName);
       childSchema.columns
           .where((col) =>
@@ -346,16 +347,16 @@ class SyncEngineIsolate {
 }
 
 // runs in the main isolate and schedules tasks to run in a background isloate
-class SyncEngine extends TaskRunner {
-  static final _instances = HashMap<int, SyncEngine>();
+class SyncController extends TaskRunner {
+  static final _instances = HashMap<int, SyncController>();
 
-  static SyncEngine current() {
-    return SyncEngine.forAccount(UserAccount.current);
+  static SyncController current() {
+    return SyncController.forAccount(AuthController.instance.currentAccount!);
   }
 
-  static SyncEngine forAccount(UserAccount account) {
+  static SyncController forAccount(UserAccount account) {
     if (!_instances.containsKey(account.id)) {
-      _instances[account.id] = SyncEngine(account);
+      _instances[account.id] = SyncController(account);
     }
     return _instances[account.id]!;
   }
@@ -386,7 +387,7 @@ class SyncEngine extends TaskRunner {
   final NetConnectivityInfo _connectivityInfo = NetConnectivityInfo(0);
   late final StreamSubscription<ConnectivityResult> _subConnectivity;
 
-  SyncEngine(this._userAccount) {
+  SyncController(this._userAccount) {
     scheduleMicrotask(() async {
       // plugins can run only in the main isolate
       final dbPath = await getLocalDatabasePath();
@@ -503,7 +504,7 @@ class SyncEngine extends TaskRunner {
     final databasesPath = path.join(docsPath, "databases");
     await Directory(databasesPath).create(recursive: true);
 
-    return path.join(databasesPath, "data_${_userAccount.id}.db");
+    return path.join(databasesPath, "data_${_userAccount.envName}_${_userAccount.id}.db");
   }
 
   @override

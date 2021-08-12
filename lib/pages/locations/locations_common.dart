@@ -74,7 +74,7 @@ class LocationObjectListController extends TableViewController {
   }
 
   _setup() async {
-    final onChanged = await SyncEngine.current()
+    final onChanged = await SyncController.current()
         .createSchemaChangedStream([Coil.SCHEMA_NAME, Pack.SCHEMA_NAME, PackEntry.SCHEMA_NAME, Restock.SCHEMA_NAME]);
     final sub = onChanged.listen((event) {
       if (_isDisposed) {

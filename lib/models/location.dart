@@ -179,7 +179,7 @@ class Location extends SyncObject<Location> {
       ]);
 
   static Future<bool> hasUnsubmittedPacks(int locationId) async {
-    final res = await SyncEngine.current().select(
+    final res = await SyncController.current().select(
         "select 1 from ${PackEntry.schema.tableName} where location_id=? and ifnull(restock_id, 0) = 0 limit 1",
         args: [locationId]);
     return res.size > 0;

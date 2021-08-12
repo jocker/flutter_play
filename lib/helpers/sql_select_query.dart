@@ -41,7 +41,9 @@ class SqlSelectQueryBuilder {
   }
 
   limit(int limit) {
-    _limit = limit;
+    if(_limit == null){
+      _limit = limit;
+    }
   }
 
   offset(int offset) {

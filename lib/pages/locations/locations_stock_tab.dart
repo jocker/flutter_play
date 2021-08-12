@@ -212,7 +212,7 @@ class LocationStockObjectListController extends LocationObjectListController {
     restock.locationId = locationId;
     restock.entries = restockEntries;
 
-    final res = await SyncEngine.current().upsertObject(restock);
+    final res = await SyncController.current().upsertObject(restock);
     print(res);
 
     if (res.isSuccessful) {

@@ -1,7 +1,11 @@
+import 'dart:async';
 import 'dart:collection';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:vgbnd/models/location.dart';
+import 'package:vgbnd/sync/sync.dart';
+import 'package:vgbnd/widgets/app_page_layout.dart';
 
 import 'locations_common.dart';
 import 'locations_pack_tab.dart';
@@ -96,19 +100,48 @@ class _TabPanelState extends State<TabPanel> with SingleTickerProviderStateMixin
 }
 
 class LocationsOverview extends StatefulWidget {
+  final int locationId;
+
+  LocationsOverview({required this.locationId});
+
   @override
   _LocationsOverviewState createState() => _LocationsOverviewState();
 }
 
 class _LocationsOverviewState extends State<LocationsOverview> {
-  final locationId = 231265;
-
   final _controllers = HashMap<String, LocationObjectListController>();
+
+  String _title = "Overview";
+
+  @override
+  void initState() {
+    super.initState();
+
+    scheduleMicrotask(() async {
+      final Location? location = await SyncController.current().loadObject(Location.schema, id: this.widget.locationId);
+      if (mounted) {
+        setState(() {
+          _title = location?.locationName ?? _title;
+        });
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
+    return AppPageLayout(title: _title, body: _buildBody(context));
+  }
+
+  Widget _buildBody(BuildContext context) {
     return TabPanel(
       tabs: [
+        TabConfig(
+          key: "view",
+          label: "VIEW",
+          build: (context) {
+            return LocationViewTab(getOrInitController("view"));
+          },
+        ),
         TabConfig(
           key: "pack",
           label: "PACK",
@@ -126,15 +159,6 @@ class _LocationsOverviewState extends State<LocationsOverview> {
             );
           },
         ),
-
-        TabConfig(
-          key: "view",
-          label: "VIEW",
-          build: (context) {
-            return Container();
-            return LocationViewTab(getOrInitController("view"));
-          },
-        ),
       ],
     );
   }
@@ -147,15 +171,15 @@ class _LocationsOverviewState extends State<LocationsOverview> {
     dynamic ctrl;
     switch (which) {
       case "view":
-        ctrl = (LocationObjectListController(
-            locationId, LocationCoilStockDatasource(locationId, activeCoilsOnly: false, prodRequired: false))
+        ctrl = (LocationObjectListController(widget.locationId,
+            LocationCoilStockDatasource(widget.locationId, activeCoilsOnly: false, prodRequired: false))
           ..setGroupByColumn("tray_id"));
         break;
       case "pack":
-        ctrl = (LocationPackObjectListController(locationId, false));
+        ctrl = (LocationPackObjectListController(widget.locationId, false));
         break;
       case "stock":
-        ctrl = (LocationStockObjectListController(locationId));
+        ctrl = (LocationStockObjectListController(widget.locationId));
         break;
     }
 
@@ -169,10 +193,9 @@ class _LocationsOverviewState extends State<LocationsOverview> {
   @override
   void dispose() {
     super.dispose();
-    for(final ctrl in _controllers.values){
+    for (final ctrl in _controllers.values) {
       ctrl.dispose();
     }
     _controllers.clear();
   }
-
 }

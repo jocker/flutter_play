@@ -134,7 +134,7 @@ class _CoilFormState extends State<CoilForm> {
       _isLoading = true;
     });
 
-    final res = await SyncEngine.current().upsertObject(this.widget.coil);
+    final res = await SyncController.current().upsertObject(this.widget.coil);
     if (!res.isSuccessful) {
       var msg = res.errorMessages().join("\n");
       if (msg == "") {

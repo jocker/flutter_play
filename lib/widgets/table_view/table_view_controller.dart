@@ -65,6 +65,13 @@ class TableViewController extends ChangeNotifier {
   bool setSortDirection(TableColumn col, SortDirection dir) {
     if (getSortDirection(col) != dir) {
       _sortDirections[col] = dir;
+      if(_sortDirections.length > 1){
+        for(final existing in _sortDirections.keys.toList()){
+          if(existing != col){
+            _sortDirections.remove(existing);
+          }
+        }
+      }
       notifyListeners();
       return true;
     }

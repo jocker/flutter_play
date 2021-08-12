@@ -174,7 +174,7 @@ class LocationPackObjectListController extends LocationObjectListController {
     _isInitialized = true;
     callback();
 
-    final watcher = await SyncEngine.current().createSchemaChangedStream([PackEntry.SCHEMA_NAME]);
+    final watcher = await SyncController.current().createSchemaChangedStream([PackEntry.SCHEMA_NAME]);
     final sub = watcher.listen((event) async {
       final newHasUnsubmittedPacks = await Location.hasUnsubmittedPacks(this.locationId);
       if (isDisposed) {
@@ -237,7 +237,7 @@ class LocationPackObjectListController extends LocationObjectListController {
       return;
     }
 
-    final res = await SyncEngine.current().upsertObject(pack!);
+    final res = await SyncController.current().upsertObject(pack!);
     print(res);
 
     if (res.isSuccessful) {
@@ -281,7 +281,7 @@ class LocationPackObjectListController extends LocationObjectListController {
   }
 
   Future<Pack?> _getProductPackData() async {
-    final locationCoils = (await SyncEngine.current().select(
+    final locationCoils = (await SyncController.current().select(
             "select * from ${Coil.schema.tableName} where active = 1 and location_id=?",
             args: [this.locationId]))
         .mapOf(Coil.schema)
@@ -428,7 +428,7 @@ class LocationPackObjectListController extends LocationObjectListController {
       onReset: () async {
         final pack = Pack();
         pack.locationId = locationId;
-        final res = await SyncEngine.current().mutateObject(pack, SyncObjectMutationType.Delete);
+        final res = await SyncController.current().mutateObject(pack, SyncObjectMutationType.Delete);
         if (res.isSuccessful) {
           Fluttertoast.showToast(msg: "Packs deleted");
           this.dataSource.reload();

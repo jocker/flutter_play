@@ -3,24 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:vgbnd/ext.dart';
 
-class SearchPage extends StatefulWidget {
-  @override
-  _SearchPageState createState() => _SearchPageState();
-}
-
-class _SearchPageState extends State<SearchPage> {
-  bool _searchMode = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: SearchAppBar(title: Text('Search')),
-      // AppBar(title: Text('Search'), actions: [ IconButton(icon: Icon(Icons.search), onPressed: () {  },)],),
-      body: Center(),
-    );
-  }
-}
-
 class SearchAppBar extends StatefulWidget implements PreferredSizeWidget {
   final Widget? leading;
   final Widget? title;
@@ -67,10 +49,7 @@ class _SearchAppBarState extends State<SearchAppBar> implements _SearchTextContr
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      top: true,
-      child: _buildChild(context),
-    );
+    return _buildChild(context);
   }
 
   Widget _buildChild(BuildContext context) {
@@ -80,16 +59,19 @@ class _SearchAppBarState extends State<SearchAppBar> implements _SearchTextContr
 
     final List<Widget> actions = [];
     actions.addAll(widget.actions ?? []);
-    actions.add(IconButton(
-      icon: Icon(Icons.search),
-      onPressed: () {
-        setState(() {
-          _inSearchMode = true;
-        });
-      },
-    ));
+    if (widget.onSearchTextChanged != null) {
+      actions.add(IconButton(
+        icon: Icon(Icons.search),
+        onPressed: () {
+          setState(() {
+            _inSearchMode = true;
+          });
+        },
+      ));
+    }
 
     return AppBar(
+      elevation: 0,
       title: this.widget.title,
       leading: this.widget.leading,
       actions: actions,

@@ -6,7 +6,6 @@ import 'package:vgbnd/data/sql_result_set.dart';
 import 'package:vgbnd/helpers/sql_select_query.dart';
 import 'package:vgbnd/sync/schema.dart';
 import 'package:vgbnd/sync/sync.dart';
-import 'package:vgbnd/ext.dart';
 
 class SqlQueryDataSource extends TableViewDataSource<SqlRow> {
   SqlSelectQueryBuilder _baseQuery;
@@ -37,7 +36,6 @@ class SqlQueryDataSource extends TableViewDataSource<SqlRow> {
     }
 
     print("SqlQueryDataSource constructor");
-    
   }
 
   @override
@@ -53,7 +51,7 @@ class SqlQueryDataSource extends TableViewDataSource<SqlRow> {
   Future prepare() async {
     if (_useSnapshot) {
       print("prepare ${this._baseQuery.build().sql}");
-      this._baseQuery = await SyncEngine.current().createQuerySnapshot(this._baseQuery);
+      this._baseQuery = await SyncController.current().createQuerySnapshot(this._baseQuery);
       this._fieldSelectors = this._baseQuery.fieldMap();
     }
   }
@@ -121,7 +119,7 @@ class SqlTableViewDataProvider extends TableViewDataProvider<SqlRow> {
                 ..offset(_currentPage * _pageSize))
               .build();
 
-          final res = await SyncEngine.current().select(q.sql, args: q.args);
+          final res = await SyncController.current().select(q.sql, args: q.args);
           _currentPage += 1;
           final rows = res.toList();
 
@@ -320,6 +318,9 @@ abstract class TableViewDataSource<T> extends ChangeNotifier {
 
   T? getItemAt(int pos) {
     if (_currentState == STATE_NONE) {
+      _triggerLoad();
+    }
+    if (_hasMoreToLoad && pos >= _loadedData.length - _loadAhead && _currentState == STATE_IDLE) {
       _triggerLoad();
     }
     if (pos >= 0 && pos < itemCount) {

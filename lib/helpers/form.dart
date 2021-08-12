@@ -12,13 +12,13 @@ enum InputType { Text, Decimal, Integer }
 
 const FIELD_VALIDATOR_PRESENCE = 1 << 0;
 
-Widget buildTextField(
-    {required String label,
-    required String? value,
-    InputType? inputType,
-    FormFieldSetter<String>? onSaved,
-    int? validatorFlags,
-    bool? isRequired}) {
+Widget buildTextField({required String label,
+  required String? value,
+  InputType? inputType,
+  FormFieldSetter<String>? onSaved,
+  int? validatorFlags,
+  bool obscureText = false,
+  bool? isRequired}) {
   inputType ??= InputType.Text;
 
   final ctrl = TextEditingController();
@@ -45,6 +45,7 @@ Widget buildTextField(
   }
 
   return TextFormField(
+      obscureText: obscureText,
       textInputAction: TextInputAction.next,
       controller: ctrl,
       inputFormatters: inputFormatters,
@@ -60,8 +61,8 @@ Widget buildTextField(
       onSaved: onSaved);
 }
 
-Widget buildRefSchemaField(
-    {required SyncSchema schema, required String label, required int? id, FormFieldSetter<int?>? onSaved, String? pickWindowTitle}) {
+Widget buildRefSchemaField({required SyncSchema schema, required String label, required int? id, FormFieldSetter<
+    int?>? onSaved, String? pickWindowTitle}) {
   return SchemaRefTextField(
     pickWindowTitle: pickWindowTitle,
     objectSchema: schema,
@@ -77,17 +78,17 @@ class DecimalTextInputFormatter extends TextInputFormatter {
   final int? decimalRange;
 
   @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue, // unused.
-    TextEditingValue newValue,
-  ) {
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, // unused.
+      TextEditingValue newValue,) {
     TextSelection newSelection = newValue.selection;
     String truncated = newValue.text;
 
     if (decimalRange != null) {
       String value = newValue.text;
 
-      if (value.contains(".") && value.substring(value.indexOf(".") + 1).length > decimalRange!) {
+      if (value.contains(".") && value
+          .substring(value.indexOf(".") + 1)
+          .length > decimalRange!) {
         truncated = oldValue.text;
         newSelection = oldValue.selection;
       } else if (value == ".") {
@@ -116,7 +117,8 @@ class SchemaRefTextField extends StatefulWidget {
   final SyncSchema objectSchema;
   final FormFieldSetter<int?>? onSaved;
 
-  SchemaRefTextField({Key? key, required this.objectSchema, required this.label, required this.objectId, this.onSaved, this.pickWindowTitle})
+  SchemaRefTextField(
+      {Key? key, required this.objectSchema, required this.label, required this.objectId, this.onSaved, this.pickWindowTitle})
       : super(key: key);
 
   @override
@@ -135,7 +137,7 @@ class _SchemaRefTextFieldState extends State<SchemaRefTextField> {
 
     if (objectId != 0) {
       scheduleMicrotask(() async {
-        final obj = (await SyncEngine.current().loadObject(widget.objectSchema, id: objectId));
+        final obj = (await SyncController.current().loadObject(widget.objectSchema, id: objectId));
         setState(() {
           _fieldController.value = TextEditingValue(text: obj.getDisplayName() ?? "");
         });
@@ -186,8 +188,8 @@ class _SchemaRefTextFieldState extends State<SchemaRefTextField> {
 }
 
 
-_runValidators(String? value, int validators){
-  if(validators & FIELD_VALIDATOR_PRESENCE == FIELD_VALIDATOR_PRESENCE){
+_runValidators(String? value, int validators) {
+  if (validators & FIELD_VALIDATOR_PRESENCE == FIELD_VALIDATOR_PRESENCE) {
     if (value == null || value.isEmpty) {
       return 'This field is required';
     }
